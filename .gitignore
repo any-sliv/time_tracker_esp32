@@ -1,3 +1,8 @@
+# User added
+.pio/*
+.code-workspace
+
+
 # Prerequisites
 *.d
 
