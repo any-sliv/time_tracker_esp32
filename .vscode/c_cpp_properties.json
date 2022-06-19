@@ -11,7 +11,7 @@
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/include",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/src",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/esp_pm/include",
-                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/.pio/build/lolin32_lite/config",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/.pio/build/az-delivery-devkit-v4/config",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/newlib/platform_include",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/freertos/include",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/freertos/port/xtensa/include",
@@ -116,6 +116,11 @@
                 "/Users/macsli/.platformio/packages/framework-espidf/components/spiffs/include",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/ulp/include",
                 "/Users/macsli/.platformio/packages/framework-espidf/components/wifi_provisioning/include",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/gpio",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/dateTime",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/wifi",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/logger",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/Nvs32",
                 ""
             ],
             "browse": {
@@ -124,7 +129,7 @@
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/include",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/src",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/esp_pm/include",
-                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/.pio/build/lolin32_lite/config",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/.pio/build/az-delivery-devkit-v4/config",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/newlib/platform_include",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/freertos/include",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/freertos/port/xtensa/include",
@@ -229,6 +234,11 @@
                     "/Users/macsli/.platformio/packages/framework-espidf/components/spiffs/include",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/ulp/include",
                     "/Users/macsli/.platformio/packages/framework-espidf/components/wifi_provisioning/include",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/gpio",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/dateTime",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/wifi",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/logger",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/Nvs32",
                     ""
                 ]
             },
@@ -236,8 +246,8 @@
                 "_GNU_SOURCE",
                 "IDF_VER=\"4.3.2\"",
                 "ESP_PLATFORM",
-                "PLATFORMIO=60001",
-                "ARDUINO_LOLIN32_LITE",
+                "PLATFORMIO=60002",
+                "ARDUINO_ESP32_DEV",
                 ""
             ],
             "cStandard": "c99",
@@ -246,8 +256,7 @@
             "compilerArgs": [
                 "-mlongcalls",
                 ""
-            ],
-            "compileCommands": "${workspaceFolder}/.pio/build/lolin32_lite/compile_commands.json"
+            ]
         }
     ],
     "version": 4
