@@ -44,9 +44,17 @@ static void vTask1(void *pvParameters) {
 
     wifi.init();
     
+    Logger::LOGI("Begin start.");
     wifi.begin();
+    Logger::LOGI("Begin end.");
+
+
     for(;;) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+        // If connected...
+        if(WIFI::Wifi::state_e::CONNECTED == WIFI::Wifi::get_state()) {
+            
+        }
     }
 }
 

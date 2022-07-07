@@ -79,8 +79,11 @@ void Wifi::wifi_event_handler(void* arg, esp_event_base_t event_base,
             break;
         }
 
+        //todo sometimes gets event ID 21 -> STA beacon timeout
+
+        //todo disconnected
+
         default:
-            // TODO STOP and DISCONNECTED, and others
             ESP_LOGW(_log_tag, "%s:%d Default switch case (%d)", __func__, __LINE__, event_id);
             break;
         }
