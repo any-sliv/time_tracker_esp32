@@ -44,7 +44,8 @@ namespace Logger {
         std::string concatenate(T t) {
             std::stringstream ss;
             ss << t;
-            return ss.str();
+            // Add a space at end of each arg
+            return std::string(ss.str() + " ");
         }
 
         /* If build fails in this file you probably given wrong param type to logger */
@@ -58,7 +59,7 @@ namespace Logger {
         template<typename T, typename... Args>
         std::string concatenate(T first, Args... args) {
             std::string text = concatenate(first);
-            text.append(concatenate(args...) + " ");
+            text.append(concatenate(args...));
             return text;
         }
     } // LoggerHelper NAMESPACE

@@ -14,6 +14,8 @@
 namespace WIFI
 {
 
+void WifiTask(void *pvParamemeters);
+
 /// @brief Non-volatile Storage Partition Interface
 ///
 /// @note Threadsafe
@@ -21,8 +23,11 @@ class Wifi
 {
     constexpr static const char* _log_tag{"WiFi"};          ///< cstring of logging tag
 
-    constexpr static const char* ssid{"Wifi-King"};   ///< cstring of hard coded WiFi SSID
-    constexpr static const char* password{"Urzednicza1"};    ///< cstring of hard coded WiFi password
+    // constexpr static const char* ssid{"Wifi-King"};   ///< cstring of hard coded WiFi SSID
+    // constexpr static const char* password{"Urzednicza1"};    ///< cstring of hard coded WiFi password
+
+    constexpr static const char* ssid{"Wifi King"};   ///< cstring of hard coded WiFi SSID
+    constexpr static const char* password{"netiaspocik"};    ///< cstring of hard coded WiFi password
 
 public:
     enum class state_e

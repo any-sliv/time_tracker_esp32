@@ -1,7 +1,9 @@
 #include "wifi.hpp"
+#include "logger.hpp"
 
 namespace WIFI
 {
+using namespace Logger;
 
 // Wifi statics
 char                Wifi::mac_addr_cstr[]{};    ///< Buffer to hold MAC as cstring
@@ -13,14 +15,29 @@ wifi_init_config_t  Wifi::wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 wifi_config_t       Wifi::wifi_config{};
 NVS::Nvs            Wifi::nvs{};
 
+void WifiTask(void *pvParameters) {
+     //task vars
+    Wifi wifi;
+
+    wifi.init();
+    
+    Logger::LOGI("Begin start.");
+    wifi.begin();
+    Logger::LOGI("Begin end.");
+
+
+    for(;;) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        // If connected...
+        if(Wifi::state_e::CONNECTED == Wifi::get_state()) {
+            
+        }
+    }
+}
+
 // Wifi Constructor
 Wifi::Wifi(void)
 {
-    // Aquire our initialisation mutex to ensure only one
-    //   thread (multi-cpu safe) is running this
-    //   constructor at once.  No running twice in parallel!
-    std::lock_guard<std::mutex> guard(init_mutx);
-
     // Check if the MAC cstring currently begins with a
     //   nullptr, i.e. is default initialised, not set
     if (!get_mac()[0])
@@ -36,7 +53,7 @@ void Wifi::event_handler(void* arg, esp_event_base_t event_base,
 {
     if (WIFI_EVENT == event_base)
     {
-        ESP_LOGI(_log_tag, "%s:%d Got a WIFI_EVENT", __func__, __LINE__);
+        LOGI(_log_tag, __func__, __LINE__, "Got a WIFI_EVENT"); 
         return wifi_event_handler(arg, event_base, event_id, event_data);
     }
     else if (IP_EVENT == event_base)
@@ -58,13 +75,13 @@ void Wifi::wifi_event_handler(void* arg, esp_event_base_t event_base,
         const wifi_event_t event_type{static_cast<wifi_event_t>(event_id)};
 
         ESP_LOGI(_log_tag, "%s:%d Event ID %d", __func__, __LINE__, event_id);
+        LOGI(_log_tag, __func__, ":", __LINE__, "Got a WIFI_EVENT");
 
         switch(event_type)
         {
         case WIFI_EVENT_STA_START:
         {
-            ESP_LOGI(_log_tag, "%s:%d STA_START, waiting for state_mutx", __func__, __LINE__);
-            std::lock_guard<std::mutex> state_guard(state_mutx);
+            ESP_LOGI(_log_tag, "%s:%d STA_START", __func__, __LINE__);
             _state = state_e::READY_TO_CONNECT;
             ESP_LOGI(_log_tag, "%s:%d READY_TO_CONNECT", __func__, __LINE__);
             break;
@@ -213,24 +230,6 @@ esp_err_t Wifi::_init(void)
         }
 
         vTaskDelay(1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         ESP_LOGI(_log_tag, "%s:%d Calling esp_netif_init", __func__, __LINE__);
         status = esp_netif_init();

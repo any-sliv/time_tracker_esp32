@@ -12,7 +12,6 @@
 #include "gpio.hpp"
 #include "wifi.hpp"
 #include "logger.hpp"
-//todo check cmakelists before includes modules
 
 extern "C" {
     #include <freertos/FreeRTOS.h>
@@ -24,38 +23,19 @@ extern "C" {
 #define TASK_STACK_DEPTH_NORMAL (4U * 1024U)
 #define TASK_PRIORITY_NORMAL (3U)
 
-static void vTask1(void *pvParameters);
 static void vTask2(void *pvParameters);
 
 void tasksInit() {
     BaseType_t res = pdFAIL;
-    res = xTaskCreate(vTask1, "Task1", TASK_STACK_DEPTH_NORMAL, NULL,
+    
+    // Wifi task
+    res = xTaskCreate(WIFI::WifiTask, "WifiTask", TASK_STACK_DEPTH_NORMAL, NULL,
                                         TASK_PRIORITY_NORMAL, NULL);
     configASSERT(res);
 
     res = xTaskCreate(vTask2, "Task2", TASK_STACK_DEPTH_NORMAL, NULL, 
                                         TASK_PRIORITY_NORMAL, NULL);
     configASSERT(res);
-}
-
-static void vTask1(void *pvParameters) {
-    //task vars
-    WIFI::Wifi wifi;
-
-    wifi.init();
-    
-    Logger::LOGI("Begin start.");
-    wifi.begin();
-    Logger::LOGI("Begin end.");
-
-
-    for(;;) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        // If connected...
-        if(WIFI::Wifi::state_e::CONNECTED == WIFI::Wifi::get_state()) {
-            
-        }
-    }
 }
 
 static void vTask2(void *pvParameters) {
