@@ -28,39 +28,24 @@ extern "C" {
 #include "esp_sntp.h"
 } // extern C close
 
-/******************************************************************************
-                             MACROS/DEFINITIONS
-******************************************************************************/
-
-/******************************************************************************
-                                 FUNCTIONS
-******************************************************************************/
-
 /**
 * Class DateTime. Stores time in private member. 
-* Object creation automatically initializes SNTP server and sets time to current system time. 
 * If no SNTP server is synced, default time value is 2000/01/01,00:00:00. 
 */
-class DateTime {
-    time_t timestamp;
-
+class SNTP {
 public:
-    DateTime(const std::string sntpServerName = "pool.ntp.org", time_t defaultTime = 946684800) {
+    SNTP() = default;
+    //todo add destructor
+
+    static void init(const std::string sntpServerName = "pool.ntp.org", time_t defaultTime = 946684800) {
         Logger::LOGI("DateTime", "Init.");
         struct timeval tv;
         tv.tv_sec = defaultTime;
-        timestamp = defaultTime;
         // set default time
         settimeofday(&tv, NULL);
 
-        // update timestamp
-        SetNow();
-
-        // if operating mode is set sntp is already running
-        // opmod is set and you try to set again - core panic
-        if(sntp_getoperatingmode() != SNTP_OPMODE_POLL) {
-            return;
-        }
+        // Prevent SNTP from reinitialising.
+        sntp_stop();
         
         Logger::LOGI("DateTime", "SNTP init");
         sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -68,33 +53,52 @@ public:
         sntp_init();
 
         //todo add location fetching and adjust tz accordingly?
-        SetTimeZone();
+        setTimeZone();
     }
 
-    /**
-    * Get current system time. Time is saved in private member.
-    */
-    void SetNow(void) {
-        timestamp = time(NULL);
+    /** 
+     * @brief Get a reference to the singleton instance
+     * @return reference to a singleton SNTP object
+     */
+    static SNTP& get_instance(void)
+    {
+        static SNTP sntp;
+        return sntp;
     }
 
-    std::string GetTimeStringFormat(void) {
-        char CurrentTimeUtc[25];
-        struct tm timeinfo;
-        localtime_r(&timestamp, &timeinfo);
-        strftime(CurrentTimeUtc, sizeof(CurrentTimeUtc), "%F %T", &timeinfo);
-        return std::string(CurrentTimeUtc);
-    }
-
-    /**
+     /**
     * Set time zone
     *
     * @param timezone string. Default is "UTC" timezone.
     * Examples: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv "Europe/Warsaw".
     */
-    void SetTimeZone(const std::string tz = "UTC") {
+    static void setTimeZone(const std::string tz = "UTC") {
         setenv("TZ", tz.c_str(), 1);
         tzset();
+    }
+};
+
+class Timestamp {
+    time_t timestamp;
+
+public:
+    Timestamp() {
+        setNow();
+    }
+
+    /**
+    * Get current system time. Time is saved in private member.
+    */
+    void setNow(void) {
+        timestamp = time(NULL);
+    }
+
+    std::string getTimeStringFormat(void) {
+        char CurrentTimeUtc[25];
+        struct tm timeinfo;
+        localtime_r(&timestamp, &timeinfo);
+        strftime(CurrentTimeUtc, sizeof(CurrentTimeUtc), "%F %T", &timeinfo);
+        return std::string(CurrentTimeUtc);
     }
 
     //todo date addition
@@ -103,7 +107,7 @@ public:
     * Subtraction operator. Result of (end-beginning) in seconds as a value of type double.
     * result = <end> - <beginning>
     */
-    double operator - (DateTime const &obj) {
+    double operator - (Timestamp const &obj) {
         return difftime(timestamp, obj.timestamp);
     }
 

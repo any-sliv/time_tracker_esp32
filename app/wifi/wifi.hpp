@@ -3,6 +3,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "dateTime.hpp"
 
 #include <algorithm>
 #include <mutex>
@@ -26,8 +27,11 @@ class Wifi
     // constexpr static const char* ssid{"Wifi-King"};   ///< cstring of hard coded WiFi SSID
     // constexpr static const char* password{"Urzednicza1"};    ///< cstring of hard coded WiFi password
 
-    constexpr static const char* ssid{"Wifi King"};   ///< cstring of hard coded WiFi SSID
-    constexpr static const char* password{"netiaspocik"};    ///< cstring of hard coded WiFi password
+    constexpr static const char* ssid{"biedaNet"};   ///< cstring of hard coded WiFi SSID
+    constexpr static const char* password{"najnizszakrajowa"};    ///< cstring of hard coded WiFi password
+
+    // constexpr static const char* ssid{"Wifi King"};   ///< cstring of hard coded WiFi SSID
+    // constexpr static const char* password{"netiaspocik"};    ///< cstring of hard coded WiFi password
 
 public:
     enum class state_e
@@ -72,12 +76,13 @@ public:
 	/// 	- ESP_OK if WIFI driver running
     ///     - ESP_FAIL if we are in the ERROR state (//TODO how to recover?)
     ///     - other error codes from underlying API
-    esp_err_t begin(void);
+    esp_err_t loop(void);
 
     constexpr static const state_e& get_state(void) { return _state; } ///< Current WiFi state
 
     constexpr static const char* get_mac(void) 
         { return mac_addr_cstr; } ///< Device specific WiFi MAC address
+
 
 private:
 	/// @brief Initialise WiFi

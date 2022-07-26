@@ -1,5 +1,7 @@
+
 #include "wifi.hpp"
 #include "logger.hpp"
+#include "dateTime.hpp"
 
 namespace WIFI
 {
@@ -7,30 +9,32 @@ using namespace Logger;
 
 // Wifi statics
 char                Wifi::mac_addr_cstr[]{};    ///< Buffer to hold MAC as cstring
-std::mutex          Wifi::init_mutx{};          ///< Initialisation mutex
-std::mutex          Wifi::connect_mutx{};       ///< Connect mutex
-std::mutex          Wifi::state_mutx{};         ///< State change mutex
 Wifi::state_e       Wifi::_state{state_e::NOT_INITIALISED};
 wifi_init_config_t  Wifi::wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 wifi_config_t       Wifi::wifi_config{};
 NVS::Nvs            Wifi::nvs{};
 
 void WifiTask(void *pvParameters) {
+    LOGI("WiFi", __func__, ":", __LINE__, "Wifi task init.");
+
      //task vars
     Wifi wifi;
 
     wifi.init();
-    
-    Logger::LOGI("Begin start.");
-    wifi.begin();
-    Logger::LOGI("Begin end.");
 
+    SNTP& sntp = SNTP::get_instance();
+    sntp.init();
+
+    Timestamp time;
 
     for(;;) {
+        wifi.loop();
+
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         // If connected...
         if(Wifi::state_e::CONNECTED == Wifi::get_state()) {
-            
+            time.setNow();
+            LOGI(time.getTimeStringFormat());
         }
     }
 }
@@ -89,14 +93,20 @@ void Wifi::wifi_event_handler(void* arg, esp_event_base_t event_base,
 
         case WIFI_EVENT_STA_CONNECTED:
         {
-            ESP_LOGI(_log_tag, "%s:%d STA_CONNECTED, waiting for state_mutx", __func__, __LINE__);
-            std::lock_guard<std::mutex> state_guard(state_mutx);
+            ESP_LOGI(_log_tag, "%s:%d STA_CONNECTED", __func__, __LINE__);
             ESP_LOGI(_log_tag, "%s:%d WAITING_FOR_IP", __func__, __LINE__);
             _state = state_e::WAITING_FOR_IP;
             break;
         }
 
         //todo sometimes gets event ID 21 -> STA beacon timeout
+
+        case WIFI_EVENT_STA_DISCONNECTED:
+        {
+            LOGI(_log_tag, __func__, ":", __LINE__, "DISCONNECTED");
+            _state = state_e::DISCONNECTED;
+            break;
+        }
 
         //todo disconnected
 
@@ -120,8 +130,7 @@ void Wifi::ip_event_handler(void* arg, esp_event_base_t event_base,
         {
         case IP_EVENT_STA_GOT_IP:
         {
-            ESP_LOGI(_log_tag, "%s:%d Got IP, waiting for state_mutx", __func__, __LINE__);
-            std::lock_guard<std::mutex> guard(state_mutx);
+            ESP_LOGI(_log_tag, "%s:%d Got IP", __func__, __LINE__);
             _state = state_e::CONNECTED;
             ESP_LOGI(_log_tag, "%s:%d CONNECTED!", __func__, __LINE__);
             break;
@@ -129,8 +138,7 @@ void Wifi::ip_event_handler(void* arg, esp_event_base_t event_base,
 
         case IP_EVENT_STA_LOST_IP:
         {
-            ESP_LOGW(_log_tag, "%s:%d Lost IP, waiting for state_mutx", __func__, __LINE__);
-            std::lock_guard<std::mutex> guard(state_mutx);
+            ESP_LOGW(_log_tag, "%s:%d Lost IP", __func__, __LINE__);
             _state = state_e::WAITING_FOR_IP;
             ESP_LOGI(_log_tag, "%s:%d WAITING_FOR_IP", __func__, __LINE__);
             break;
@@ -144,22 +152,15 @@ void Wifi::ip_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-
-
 esp_err_t Wifi::init(void)
 {
     return _init();
 }
 
-esp_err_t Wifi::begin(void)
+esp_err_t Wifi::loop(void)
 {
-    ESP_LOGI(_log_tag, "%s:%d Waiting for connect_mutx", __func__, __LINE__);
-    std::lock_guard<std::mutex> connect_guard(connect_mutx);
-
     esp_err_t status{ESP_OK};
 
-    ESP_LOGI(_log_tag, "%s:%d Waiting for state_mutx", __func__, __LINE__);
-    std::lock_guard<std::mutex> state_guard(state_mutx);
     switch(_state)
     {
     case state_e::READY_TO_CONNECT:
@@ -179,6 +180,13 @@ esp_err_t Wifi::begin(void)
     case state_e::NOT_INITIALISED:
     case state_e::INITIALISED:
     case state_e::DISCONNECTED:
+        ESP_LOGI(_log_tag, "%s:%d Calling esp_wifi_connect", __func__, __LINE__);
+        status = esp_wifi_connect();
+        ESP_LOGI(_log_tag, "%s:%d esp_wifi_connect:%s", __func__, __LINE__,
+                                                        esp_err_to_name(status));
+        if (ESP_OK == status) _state = state_e::CONNECTING;
+        break;
+
     case state_e::ERROR:
         ESP_LOGE(_log_tag, "%s:%d Error state", __func__, __LINE__);
         status = ESP_FAIL;
@@ -190,13 +198,7 @@ esp_err_t Wifi::begin(void)
 
 esp_err_t Wifi::_init(void)
 {
-    ESP_LOGI(_log_tag, "%s:%d Waiting for init_mutx", __func__, __LINE__);
-    std::lock_guard<std::mutex> init_guard(init_mutx);
-
     esp_err_t status{ESP_OK};
-
-    ESP_LOGI(_log_tag, "%s:%d Waiting for state_mutx", __func__, __LINE__);
-    std::lock_guard<std::mutex> state_guard(state_mutx);
 
     if (state_e::NOT_INITIALISED == _state)
     {

@@ -3,6 +3,7 @@
 
 FILE(GLOB_RECURSE app_sources 
     ${CMAKE_SOURCE_DIR}/src/*.*
+    ${CMAKE_SOURCE_DIR}/drivers/*.*
     ${CMAKE_SOURCE_DIR}/app/*.*
     ${CMAKE_SOURCE_DIR}/app/wifi/*.cpp
 )

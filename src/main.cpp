@@ -12,6 +12,7 @@
 #include "gpio.hpp"
 #include "wifi.hpp"
 #include "logger.hpp"
+#include "imu.hpp"
 
 extern "C" {
     #include <freertos/FreeRTOS.h>
@@ -34,6 +35,10 @@ void tasksInit() {
     configASSERT(res);
 
     res = xTaskCreate(vTask2, "Task2", TASK_STACK_DEPTH_NORMAL, NULL, 
+                                        TASK_PRIORITY_NORMAL, NULL);
+    configASSERT(res);
+
+    res = xTaskCreate(IMU::ImuTask, "ImuTask", TASK_STACK_DEPTH_NORMAL, NULL, 
                                         TASK_PRIORITY_NORMAL, NULL);
     configASSERT(res);
 }
