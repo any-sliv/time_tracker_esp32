@@ -19,7 +19,9 @@
 ******************************************************************************/
 
 #include "iostream"
-#include "Logger.hpp"
+#include "logger.hpp"
+#include <chrono>
+
 
 extern "C" {
 #include <stdbool.h>
@@ -27,6 +29,13 @@ extern "C" {
 #include <time.h>
 #include "esp_sntp.h"
 } // extern C close
+
+using namespace std::literals::chrono_literals;
+
+typedef std::chrono::time_point<std::chrono::steady_clock> Timestamp;
+typedef std::chrono::steady_clock Clock;
+
+//todo has passed? give argument of some Timestamp and compare to ::now()
 
 /**
 * Class DateTime. Stores time in private member. 
@@ -77,49 +86,6 @@ public:
         tzset();
     }
 };
-
-class Timestamp {
-    time_t timestamp;
-
-public:
-    Timestamp() {
-        setNow();
-    }
-
-    /**
-    * Get current system time. Time is saved in private member.
-    */
-    void setNow(void) {
-        timestamp = time(NULL);
-    }
-
-    std::string getTimeStringFormat(void) {
-        char CurrentTimeUtc[25];
-        struct tm timeinfo;
-        localtime_r(&timestamp, &timeinfo);
-        strftime(CurrentTimeUtc, sizeof(CurrentTimeUtc), "%F %T", &timeinfo);
-        return std::string(CurrentTimeUtc);
-    }
-
-    //todo date addition
-    
-    /**
-    * Subtraction operator. Result of (end-beginning) in seconds as a value of type double.
-    * result = <end> - <beginning>
-    */
-    double operator - (Timestamp const &obj) {
-        return difftime(timestamp, obj.timestamp);
-    }
-
-    /**
-    * Subtraction operator. Result of (end-beginning) in seconds as a value of type double.
-    * result = <end> - <beginning>
-    */
-    double operator - (int seconds) {
-        return difftime(timestamp, (time_t) seconds);
-    }
-};
-
 
 #endif
 /****************************** END OF FILE  *********************************/

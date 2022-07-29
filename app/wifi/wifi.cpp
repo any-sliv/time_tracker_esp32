@@ -33,8 +33,6 @@ void WifiTask(void *pvParameters) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         // If connected...
         if(Wifi::state_e::CONNECTED == Wifi::get_state()) {
-            time.setNow();
-            LOGI(time.getTimeStringFormat());
         }
     }
 }
