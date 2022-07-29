@@ -30,9 +30,9 @@ void tasksInit() {
     BaseType_t res = pdFAIL;
     
     // Wifi task
-    res = xTaskCreate(WIFI::WifiTask, "WifiTask", TASK_STACK_DEPTH_NORMAL, NULL,
-                                        TASK_PRIORITY_NORMAL, NULL);
-    configASSERT(res);
+    // res = xTaskCreate(WIFI::WifiTask, "WifiTask", TASK_STACK_DEPTH_NORMAL, NULL,
+    //                                     TASK_PRIORITY_NORMAL, NULL);
+    // configASSERT(res);
 
     res = xTaskCreate(vTask2, "Task2", TASK_STACK_DEPTH_NORMAL, NULL, 
                                         TASK_PRIORITY_NORMAL, NULL);

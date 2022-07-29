@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mpu6050.hpp"
+#include <array>
 
 namespace IMU {
 
@@ -20,18 +21,26 @@ void ImuTask(void *pvParameters);
 //and return face number
 
 
-struct Orientation {
-    // float x, y, z;
-    // x,y,z are an abstract for us
-    float pos[3];
+class Orientation {
+public:
+    Orientation(float x, float y, float z) {
+        pos = {x, y, z};
+    }
+    // Copy constructor
+    Orientation(const Orientation& orient) {
+        pos = orient.pos;
+    }
+
+    // x, y, z
+    std::array<float, 3> pos;
 
     /**
      * @brief "==" operator checks if value is in bound +/- 10% of compared one
      */
     bool operator == (Orientation orient) {
-        float range = 0.1; //10%
+        float range = 0.9; //10%
 
-        for(unsigned int i = 0; i < (sizeof(pos)/sizeof(pos[0])); i++ ) {
+        for(unsigned int i = 0; i < pos.size(); i++ ) {
             if(!(pos[i] > (orient.pos[i] - orient.pos[i] * range)) &&
                 (pos[i] < (orient.pos[i] + orient.pos[i] * range))) {
                     return false;
@@ -47,13 +56,15 @@ class Imu : public MPU6050 {
     bool checkCalibration();
 
 public:
-    static constexpr gpio_num_t pinSda = (gpio_num_t) 25;
-    static constexpr gpio_num_t pinScl = (gpio_num_t) 26;
+    static constexpr gpio_num_t pinSda = (gpio_num_t) 14;
+    static constexpr gpio_num_t pinScl = (gpio_num_t) 12;
     static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_1;
 
     Imu();
 
     void Calibrate();
+
+    Orientation GetPosition(void);
 
     /**
      * @brief Pass the current orientation, func will return

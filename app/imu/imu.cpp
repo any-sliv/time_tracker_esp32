@@ -2,47 +2,34 @@
 #include "logger.hpp"
 #include "kalmanfilter.hpp"
 #include <cmath>
+#include "dateTime.hpp"
 
 using namespace IMU;
 
 void IMU::ImuTask(void *pvParameters) {
     Imu imu;
-    //todo change IMU -> IMUPosition?
 
-    float ax,ay,az,gx,gy,gz;
-    float pitch, roll;
-    float fpitch, froll;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    KALMAN pfilter(0.005);
-    KALMAN rfilter(0.005);
-
-    uint32_t lasttime = 0;
-    int count = 0;
+    Orientation oldPos = imu.GetPosition();
+    Timestamp time = Clock::now();
+    bool newPos = false;
 
     for(;;) {
-        // ax = -imu.sensor->getAccX();
-        // ay = -imu.sensor->getAccY();
-        // az = -imu.sensor->getAccZ();
-        // gx = imu.sensor->getGyroX();
-        // gy = imu.sensor->getGyroY();
-        // gz = imu.sensor->getGyroZ();
-        // pitch = atan(ax/az)*57.2958;
-        // roll = atan(ay/az)*57.2958;
-        // fpitch = pfilter.filter(pitch, gy);
-        // froll = rfilter.filter(roll, -gx);
-        // count++;
-        // if(esp_log_timestamp() / 1000 != lasttime) {
-        //     lasttime = esp_log_timestamp() / 1000;
-        //     printf("Samples:%d ", count);
-        //     count = 0;
-        //     printf(" Acc:(%4.2f,%4.2f,%4.2f)", ax, ay, az);
-        //     printf("Gyro:(%6.3f,%6.3f,%6.3f)", gx, gy, gz);
-        //     printf(" Pitch:%6.3f ", pitch);
-        //     printf(" Roll:%6.3f ", roll);
-        //     printf(" FPitch:%6.3f ", fpitch);
-        //     printf(" FRoll:%6.3f \n", froll);
-        // }
-        // vTaskDelay(1000 / portTICK_PERIOD_MS);
+        Orientation orient = imu.GetPosition();
+
+        if(!(orient == oldPos)) {
+            oldPos = imu.GetPosition();
+            time = Clock::now();
+            newPos = true;
+        }
+
+        if(Clock::now() - time > 5s && newPos) {
+            Logger::LOGI("New position");
+            newPos = false;
+        }
+
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -54,6 +41,10 @@ Imu::Imu() : MPU6050(pinScl, pinSda, port) {
     }
 
     Logger::LOGI("IMU init");
+
+    KALMAN pfilter(0.005);
+    KALMAN rfilter(0.005);
+
     Logger::LOGI("IMU Checking calibration...");
     auto res = checkCalibration();
 
@@ -70,6 +61,15 @@ bool Imu::checkCalibration() {
 
 void Imu::Calibrate() {
 
+}
+
+Orientation Imu::GetPosition() {
+    //todo dont know if its safe
+    //careful if adding something new to orientation structure
+
+    //todo filtering?
+    Orientation orient = {-getAccX(), -getAccY(), -getAccZ()};
+    return orient;
 }
 
 int Imu::DetectFace(Orientation orient) {

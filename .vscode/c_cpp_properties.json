@@ -120,7 +120,7 @@
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/wifi",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/logger",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/Nvs32",
-                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/cube",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/imu",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/i2c",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/gpio",
                 ""
@@ -240,7 +240,7 @@
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/wifi",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/logger",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/Nvs32",
-                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/cube",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/imu",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/i2c",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/gpio",
                     ""
@@ -255,7 +255,7 @@
                 ""
             ],
             "cStandard": "c99",
-            "cppStandard": "c++11",
+            "cppStandard": "c++14",
             "compilerPath": "/Users/macsli/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc",
             "compilerArgs": [
                 "-mlongcalls",
