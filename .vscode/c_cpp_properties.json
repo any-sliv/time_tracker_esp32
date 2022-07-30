@@ -123,6 +123,7 @@
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/imu",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/i2c",
                 "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/gpio",
+                "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/nvs",
                 ""
             ],
             "browse": {
@@ -243,6 +244,7 @@
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/app/imu",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/i2c",
                     "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/gpio",
+                    "/Users/macsli/Documents/dev/cube_esp32/time_tracker_esp32/drivers/nvs",
                     ""
                 ]
             },

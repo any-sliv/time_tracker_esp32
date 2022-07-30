@@ -3,6 +3,7 @@
 #include "mpu6050.hpp"
 #include <array>
 #include "dateTime.hpp"
+#include "nvs.hpp"
 
 namespace IMU {
 
@@ -24,6 +25,8 @@ void ImuTask(void *pvParameters);
 
 class Orientation {
 public:
+    Orientation() {};
+
     Orientation(float x, float y, float z) {
         pos = {x, y, z};
     }
@@ -58,6 +61,7 @@ class Imu : public MPU6050 {
     bool checkCalibration();
 
 public:
+    NVS::Nvs nvs;
     const static constexpr gpio_num_t pinSda = (gpio_num_t) 14;
     const static constexpr gpio_num_t pinScl = (gpio_num_t) 12;
     const static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_1;
@@ -65,6 +69,10 @@ public:
     const static constexpr int taskPeriod = ConvertToTicks(100ms);
     const static constexpr int cubeFaces = 4;
     const static constexpr std::chrono::seconds rollCooldown = 2s; // registering new position cooldown
+
+    //todo static variable defining current state of imu?
+    //todo and use this instead of queuing between tasks???
+    static int x;
 
     Imu();
 

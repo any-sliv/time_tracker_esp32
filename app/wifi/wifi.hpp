@@ -7,10 +7,8 @@
 
 #include <algorithm>
 #include <mutex>
-
 #include <cstring>
-
-#include "../Nvs32/Nvs32.h"
+#include "nvs.hpp"
 
 namespace WIFI
 {
