@@ -1,31 +1,13 @@
-/**
- * Project : R3 LTE - OSO Water heater.
- *
- * \file DateTime.hpp
- * \brief
- * \author macsli
- * \date 2022.05.23
- * \copyright 2022 Fideltronik R&D - all rights reserved.
- * \version File template version 12.2018
- */
-
 #pragma once
 
-#ifndef INC_DATETIME_H_
-#define INC_DATETIME_H_
-
-/******************************************************************************
-                                 INCLUDES
-******************************************************************************/
+#ifndef INC_DATETIME_HPP_
+#define INC_DATETIME_HPP_
 
 #include "iostream"
 #include "logger.hpp"
 #include <chrono>
 
-
 extern "C" {
-#include <stdbool.h>
-#include <stdint.h>
 #include <time.h>
 #include "esp_sntp.h"
 } // extern C close
@@ -34,6 +16,15 @@ using namespace std::literals::chrono_literals;
 
 typedef std::chrono::time_point<std::chrono::steady_clock> Timestamp;
 typedef std::chrono::steady_clock Clock;
+
+/**
+ * Pass me chrono time literal and I will return RTOS Ticks required to delay/wait.
+ * @param time of type std::literals::chrono_literals
+ */
+template<typename T>
+constexpr TickType_t ConvertToTicks(T time) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(time).count() / portTICK_RATE_MS;
+}
 
 //todo has passed? give argument of some Timestamp and compare to ::now()
 
@@ -47,16 +38,15 @@ public:
     //todo add destructor
 
     static void init(const std::string sntpServerName = "pool.ntp.org", time_t defaultTime = 946684800) {
-        Logger::LOGI("DateTime", "Init.");
+        Logger::LOGI("SNTP", __func__, ":", __LINE__, "Init");
         struct timeval tv;
         tv.tv_sec = defaultTime;
         // set default time
         settimeofday(&tv, NULL);
 
-        // Prevent SNTP from reinitialising.
+        // Prevent SNTP from reinitialising (can crash).
         sntp_stop();
         
-        Logger::LOGI("DateTime", "SNTP init");
         sntp_setoperatingmode(SNTP_OPMODE_POLL);
         sntp_setservername(0, sntpServerName.c_str());
         sntp_init();
@@ -66,7 +56,7 @@ public:
     }
 
     /** 
-     * @brief Get a reference to the singleton instance
+     * Get a reference to the singleton instance
      * @return reference to a singleton SNTP object
      */
     static SNTP& get_instance(void)
@@ -75,7 +65,7 @@ public:
         return sntp;
     }
 
-     /**
+    /**
     * Set time zone
     *
     * @param timezone string. Default is "UTC" timezone.

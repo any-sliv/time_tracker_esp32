@@ -15,6 +15,9 @@ void IMU::ImuTask(void *pvParameters) {
     Timestamp time = Clock::now();
     bool newPos = false;
 
+    //read from flash
+    // if no positions registered do calibration
+
     for(;;) {
         Orientation orient = imu.GetPosition();
 
@@ -24,16 +27,18 @@ void IMU::ImuTask(void *pvParameters) {
             newPos = true;
         }
 
-        if(Clock::now() - time > 5s && newPos) {
+        if(Clock::now() - time > Imu::rollCooldown && newPos) {
             Logger::LOGI("New position");
             newPos = false;
         }
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        Logger::LOGI(ConvertToTicks(1s));
+
+        vTaskDelay(Imu::taskPeriod);
     }
 }
 
-Imu::Imu() : MPU6050(pinScl, pinSda, port) {
+Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
     auto status = init();
 
     if(!status) {

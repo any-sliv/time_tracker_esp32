@@ -2,6 +2,7 @@
 
 #include "mpu6050.hpp"
 #include <array>
+#include "dateTime.hpp"
 
 namespace IMU {
 
@@ -35,10 +36,11 @@ public:
     std::array<float, 3> pos;
 
     /**
-     * @brief "==" operator checks if value is in bound +/- 10% of compared one
+     * "==" operator checks if value is in bound +/- x% of compared one
+     * @return close enough?
      */
     bool operator == (Orientation orient) {
-        float range = 0.9; //10%
+        float range = 0.9; // x%
 
         for(unsigned int i = 0; i < pos.size(); i++ ) {
             if(!(pos[i] > (orient.pos[i] - orient.pos[i] * range)) &&
@@ -56,9 +58,13 @@ class Imu : public MPU6050 {
     bool checkCalibration();
 
 public:
-    static constexpr gpio_num_t pinSda = (gpio_num_t) 14;
-    static constexpr gpio_num_t pinScl = (gpio_num_t) 12;
-    static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_1;
+    const static constexpr gpio_num_t pinSda = (gpio_num_t) 14;
+    const static constexpr gpio_num_t pinScl = (gpio_num_t) 12;
+    const static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_1;
+
+    const static constexpr int taskPeriod = ConvertToTicks(100ms);
+    const static constexpr int cubeFaces = 4;
+    const static constexpr std::chrono::seconds rollCooldown = 2s; // registering new position cooldown
 
     Imu();
 
