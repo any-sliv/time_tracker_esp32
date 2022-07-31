@@ -6,9 +6,6 @@
 
 using namespace IMU;
 
-//temporarily global - used instead of flash memory entry
-std::array<Orientation, Imu::cubeFaces> calibrationPos;
-
 void IMU::ImuTask(void *pvParameters) {
     Imu imu;
 
@@ -39,13 +36,19 @@ void IMU::ImuTask(void *pvParameters) {
             newPos = false;
         }
 
-        Logger::LOGI(ConvertToTicks(1s));
-
         vTaskDelay(Imu::taskPeriod);
     }
 }
 
 Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
+    nvs.init();
+    int a = 0;
+    auto read = nvs.get("imu", a);
+
+    if(read == ESP_OK && a > 0) {
+        Logger::LOGE("IMU", __func__, ":", __LINE__, "Read value: ", a);
+    }
+
     auto status = init();
 
     if(!status) {
@@ -67,29 +70,6 @@ Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
         Calibrate();
     }
     Logger::LOGI("IMU", __func__, ":", __LINE__, "IMU Calibrated");
-
-}
-
-bool Imu::checkCalibration() {
-    return isCalibrated;
-}
-
-void Imu::Calibrate() {
-    Logger::LOGI("IMU", __func__, ":", __LINE__, "Total positions to be saved: ", Imu::cubeFaces);
-    vTaskDelay(ConvertToTicks(500ms));
-
-    for(auto i = 0; i < Imu::cubeFaces; i++) {
-        Logger::LOGI("IMU", __func__, ":", __LINE__, "Saving position in 5s...");
-        vTaskDelay(ConvertToTicks(5s));
-        calibrationPos[i] = GetPosition();
-
-        Logger::LOGI("IMU", __func__, ":", __LINE__, "Position saved: ");
-        for(auto j = 0; j < calibrationPos[i].pos.size(); j++ ) {
-            Logger::LOGI("IMU", __func__, ":", __LINE__, calibrationPos[i].pos[j]);
-        }
-    }
-
-    isCalibrated = true;
 }
 
 Orientation Imu::GetPosition() {
@@ -105,3 +85,40 @@ int Imu::DetectFace(Orientation orient) {
     return 0;
 }
 
+bool Imu::checkCalibration() {
+    for (auto i = 0; i < Imu::cubeFaces; i++) {
+        std::string nvsEntry{"pos"};
+        nvsEntry += std::to_string(i);
+
+        //Return false if flash hasn't no. of positions == cubeFaces
+        if(!(nvs.get(nvsEntry.c_str(), savedPositions[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void Imu::Calibrate() {
+    Logger::LOGI("IMU", __func__, ":", __LINE__, "Total positions to be saved: ", Imu::cubeFaces);
+    vTaskDelay(ConvertToTicks(500ms));
+
+    for(auto i = 0; i < Imu::cubeFaces; i++) {
+        // Let the device stay in one position for ... time
+        Logger::LOGI("IMU", __func__, ":", __LINE__, "Saving position in 5s...");
+        vTaskDelay(ConvertToTicks(5s));
+
+        std::string nvsEntry{"pos"};
+        nvsEntry += std::to_string(i);
+        // Saving in flash using pos<i> key
+        Orientation positionToSave = GetPosition();
+        //todo react to it
+        auto res = nvs.set(nvsEntry.c_str(), positionToSave);
+
+        Logger::LOGI("IMU", __func__, ":", __LINE__, "Position saved: ");
+        for(auto j = 0; j < positionToSave.pos.size(); j++ ) {
+            Logger::LOGI("IMU", __func__, ":", __LINE__, positionToSave.pos[j]);
+        }
+    }
+
+    isCalibrated = true;
+}

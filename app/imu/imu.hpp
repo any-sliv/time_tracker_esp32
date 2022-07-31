@@ -9,20 +9,6 @@ namespace IMU {
 
 void ImuTask(void *pvParameters);
 
-//flash contains N entries of structs (position, cubeFaceNo)
-//position is X,Y,Z
-//at startup you do calibration, face number is assigned at each side facing downwards
-//N positions are detected and N faces are assigned
-
-//Flash[N] = {X, Y, Z, faceNumber}
-
-//there must be a function getFaceNumber
-//which will read from flash all registered positions
-//will get current poistion as a parameter
-//compare current position with saved ones
-//and return face number
-
-
 class Orientation {
 public:
     Orientation() {};
@@ -35,17 +21,16 @@ public:
         pos = orient.pos;
     }
 
-    // x, y, z
-    std::array<float, 3> pos;
+    std::array<float, 3> pos; // x, y, z
 
     /**
      * "==" operator checks if value is in bound +/- x% of compared one
      * @return close enough?
      */
     bool operator == (Orientation orient) {
-        float range = 0.9; // x%
+        constexpr float range = 0.9f; // x%
 
-        for(unsigned int i = 0; i < pos.size(); i++ ) {
+        for(auto i = 0; i < pos.size(); i++ ) {
             if(!(pos[i] > (orient.pos[i] - orient.pos[i] * range)) &&
                 (pos[i] < (orient.pos[i] + orient.pos[i] * range))) {
                     return false;
@@ -56,12 +41,16 @@ public:
 };
 
 class Imu : public MPU6050 {
-
+private:
     bool isCalibrated;
     bool checkCalibration();
 
-public:
+    // This stores positions registered in calibration.
+    std::array<Orientation, IMU::Imu::cubeFaces> savedPositions;
+    // NVS flash object
     NVS::Nvs nvs;
+
+public:
     const static constexpr gpio_num_t pinSda = (gpio_num_t) 14;
     const static constexpr gpio_num_t pinScl = (gpio_num_t) 12;
     const static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_1;
@@ -76,8 +65,16 @@ public:
 
     Imu();
 
+    /**
+     * @brief Perform calibration process. At some input app registers current imu position
+     *      and saves them in flash memory.
+     */
     void Calibrate();
 
+    /**
+     * @brief Get position from imu (X, Y, Z) accelometer.
+     * @return (Orientation) object.
+     */
     Orientation GetPosition(void);
 
     /**
