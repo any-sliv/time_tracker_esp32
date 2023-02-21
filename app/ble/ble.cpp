@@ -23,8 +23,6 @@ extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
 extern TaskHandle_t pwrTask;
 
-RTC_DATA_ATTR bool isBleConnected;
-
 BLEServer * Ble::server = NULL;
 Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
 
@@ -37,11 +35,22 @@ const static constexpr char * uuidImuCalibrationCharateristic = "7bef916a-3141-1
 const static constexpr char * uuidSleepService = "646b8837-cea9-4006-be25-00c990029e90";
 const static constexpr char * uuidSleepCharacteristic = "646b8837-cea9-4006-be25-00c990029e91";
 
+const static constexpr char * uuidDeviceFirmwareUpdateService = "00001530-1212-efde-1523-785feabcd123"; 
+const static constexpr char * uuidDeviceFirmwareDataCharacteristic = "00001530-1212-efde-1523-785feabcd124"; 
+const static constexpr char * uuidDeviceFirmwareControlCharacteristic = "00001530-1212-efde-1523-785feabcd125"; 
+
 // Bluetooth® SIG specified services/chars below
+
+// For one characteristic services: service uuid = characteristic uuid
+const static constexpr char * uuidFirmwareRevision = "2A26";
+const static constexpr char * uuidManufacturerName = "2A29"; 
+
 const static constexpr char * uuidBatteryService = "180F"; 
+//todo same uuid?
 const static constexpr char * uuidBatteryCharacteristic = "2A19"; 
 
-const static constexpr char * uuidCurrentTimeService = "1805"; 
+const static constexpr char * uuidCurrentTimeService = "1805"; //todo 2A08 (date time), exact time 256 (2A0C)
+//todo same uuid?
 const static constexpr char * uuidCurrentTimeCharacteristic = "2A2B";
 
 
@@ -51,51 +60,9 @@ void BLE::BleTask(void *pvParameters) {
     Ble ble;
     ble.Init();
 
-    // Scheme: Callback to characteristic. Characteristics to service. 
-
-    // IMU Position service ------------------------------------
-    BLE::Service positionService(uuidImuPositionService);
-
-    BLE::Characteristic positionCharacteristic(uuidImuPositionCharateristic, NIMBLE_PROPERTY::READ);
-    positionCharacteristic.SetCallback(new Ble::ImuPositionCallback);
-    positionService.AddCharacteristic(&positionCharacteristic);
-
-    BLE::Characteristic calibrationCharacteristic(uuidImuCalibrationCharateristic, NIMBLE_PROPERTY::WRITE_NR |
-                                                                                    NIMBLE_PROPERTY::READ);  
-    calibrationCharacteristic.SetCallback(new Ble::ImuCalibrationCallback);
-    positionService.AddCharacteristic(&calibrationCharacteristic);
-    ble.AddService(positionService);
-
-    // Sleep service ------------------------------------
-    BLE::Service sleepService(uuidSleepService);
-    BLE::Characteristic sleepCharacteristic(uuidSleepCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
-    sleepCharacteristic.SetCallback(new Ble::SleepCallback);
-    sleepService.AddCharacteristic(&sleepCharacteristic);
-    ble.AddService(sleepService);
-
-    // Battery service ------------------------------------
-    BLE::Service batteryService(uuidBatteryService);
-    BLE::Characteristic batteryCharateristic(uuidBatteryCharacteristic, NIMBLE_PROPERTY::READ |
-                                                                        NIMBLE_PROPERTY::NOTIFY);
-    batteryCharateristic.SetCallback(new Ble::BatteryCallback);
-    batteryService.AddCharacteristic(&batteryCharateristic);
-    ble.AddService(batteryService);
-
-    // Current time service ------------------------------------
-    BLE::Service currentTimeService(uuidCurrentTimeService);
-    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTimeCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
-                                                                                NIMBLE_PROPERTY::READ);
-    currentTimeCharacteristic.SetCallback(new Ble::TimeCallback);
-    currentTimeService.AddCharacteristic(&currentTimeCharacteristic);
-    ble.AddService(currentTimeService);
-
-    ble.Advertise();
-
-    //todo are these all services/chars disposable? scope it and lose'em???
-
     for(;;) {
-        // if(ble.state == BLE::Ble::ConnectionState::CONNECTED) {}
         // Most of functionalities is done in BLE characteristic callbacks
+
         timeval tv;
         gettimeofday(&tv, NULL);
         // If system time is not set (is older than 2000 year)
@@ -109,6 +76,79 @@ void BLE::BleTask(void *pvParameters) {
 
 void Ble::Init() {
     BLEDevice::init("Time tracker");
+
+    // Scheme: Callback to characteristic. Characteristics to service. 
+
+    // IMU Position service 
+    BLE::Service positionService(uuidImuPositionService);
+    BLE::Characteristic positionCharacteristic(uuidImuPositionCharateristic, NIMBLE_PROPERTY::READ);
+    positionCharacteristic.SetCallback(new Ble::ImuPositionCallback);
+    positionService.AddCharacteristic(&positionCharacteristic);
+
+    BLE::Characteristic calibrationCharacteristic(uuidImuCalibrationCharateristic, NIMBLE_PROPERTY::WRITE_NR |
+                                                                                    NIMBLE_PROPERTY::READ);  
+    calibrationCharacteristic.SetCallback(new Ble::ImuCalibrationCallback);
+    positionService.AddCharacteristic(&calibrationCharacteristic);
+    AddService(positionService);
+    // ----------------------------------------------------------
+
+    // Sleep service
+    BLE::Service sleepService(uuidSleepService);
+    BLE::Characteristic sleepCharacteristic(uuidSleepCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
+    sleepCharacteristic.SetCallback(new Ble::SleepCallback);
+    sleepService.AddCharacteristic(&sleepCharacteristic);
+    AddService(sleepService);
+    // ----------------------------------------------------------
+
+    // Device firmware update service
+    BLE::Service deviceFirmwareUpdateService(uuidDeviceFirmwareUpdateService);
+    BLE::Characteristic deviceFirmwareControlCharacteristic(uuidDeviceFirmwareControlCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
+                                                                                                    NIMBLE_PROPERTY::READ);
+    //todo set callback
+    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareControlCharacteristic);
+    BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
+    //todo set callback
+    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareDataCharacteristic);
+    AddService(deviceFirmwareUpdateService);
+    // ----------------------------------------------------------
+
+    // Firmware revision service/characteristic
+    BLE::Service firmwareRevisionService(uuidFirmwareRevision);
+    BLE::Characteristic firmwareRevisionCharacteristic(uuidFirmwareRevision, NIMBLE_PROPERTY::READ);
+    //todo its forbidden to set value in non-existing characteristic, use constructor parameter
+    // firmwareRevisionCharacteristic.SetValue("0.1.0"); //todo fetch from separate file (maintain version control)
+    firmwareRevisionService.AddCharacteristic(&firmwareRevisionCharacteristic);
+    AddService(firmwareRevisionService);
+    // ----------------------------------------------------------
+
+    // Manufacturer name service/charateristic
+    BLE::Service manufacturerNameService(uuidManufacturerName);
+    BLE::Characteristic manufacturerNameCharacteristic(uuidManufacturerName, NIMBLE_PROPERTY::READ);
+    //todo its forbidden to set value in non-existing characteristic, use constructor parameter
+    // manufacturerNameCharacteristic.SetValue("any-sliv_labs"); //todo fetch from separate file (maintain version control)
+    manufacturerNameService.AddCharacteristic(&manufacturerNameCharacteristic);
+    AddService(manufacturerNameService);
+    // ----------------------------------------------------------
+
+    // Battery service
+    BLE::Service batteryService(uuidBatteryService);
+    BLE::Characteristic batteryCharateristic(uuidBatteryCharacteristic, NIMBLE_PROPERTY::READ |
+                                                                        NIMBLE_PROPERTY::NOTIFY);
+    batteryCharateristic.SetCallback(new Ble::BatteryCallback);
+    batteryService.AddCharacteristic(&batteryCharateristic);
+    AddService(batteryService);
+    // ----------------------------------------------------------
+
+    // Current time service 
+    BLE::Service currentTimeService(uuidCurrentTimeService);
+    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTimeCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
+                                                                                NIMBLE_PROPERTY::READ);
+    currentTimeCharacteristic.SetCallback(new Ble::TimeCallback);
+    currentTimeService.AddCharacteristic(&currentTimeCharacteristic);
+    AddService(currentTimeService);
+    // ----------------------------------------------------------
+
+    Advertise();
 }
 
 void Ble::Advertise() {

@@ -21,9 +21,9 @@ public:
     uint16_t initValue;
     Characteristic(const std::string& _uuid, uint32_t _property, const uint16_t _initValue = 0) : 
                     uuid(_uuid), property(_property), initValue(_initValue) {};
-    ~Characteristic() {};
+    // ~Characteristic() {};
 
-    void SetValue(std::string &value) {
+    void SetValue(const std::string &value) {
         self->setValue(value);
     }
 
@@ -62,6 +62,15 @@ class Ble {
     static BLEServer * server;
     
 public:
+    static void Init();
+
+    static void Advertise();
+
+    enum class ConnectionState { IDLE, ADVERTISING, CONNECTED, DISCONNECTED };
+    static ConnectionState state;
+
+    static void AddService(Service service);
+
     // Callbacks of BLE server (GAP)
     class ServerCallbacks : public NimBLEServerCallbacks {
         void onConnect(BLEServer * server, NimBLEConnInfo& connInfo);
@@ -98,15 +107,6 @@ public:
         void onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
         void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
     };
-
-    static void Init();
-
-    static void Advertise();
-
-    enum class ConnectionState { IDLE, ADVERTISING, CONNECTED, DISCONNECTED };
-    static ConnectionState state;
-
-    static void AddService(Service service);
 };
 
 } // namespace BLE end --------------------
