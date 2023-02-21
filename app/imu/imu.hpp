@@ -98,7 +98,7 @@ public:
     /**
      * @brief Perform calibration process of face position. 
      *      One face register on function call. Saved in flash at success
-     * @return -1 - error, 0 - current position exists, 1 - position saved, 2 - calibration done
+     * @return see enum CalibrationStatus
      */
     int CalibrateCubeFaces();
 

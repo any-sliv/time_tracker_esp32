@@ -50,8 +50,8 @@ void IMU::ImuTask(void *pvParameters) {
             cooldown = Clock::now();
 
             // Defer sleep
-            auto item = 1;
-            xQueueSend(ImuReadyQueue, &item, 0);
+            // auto item = 1;
+            // xQueueSend(ImuReadyQueue, &item, 0);
         }
 
         if(Clock::now() - cooldown > Imu::rollCooldown && newPos) {
@@ -59,8 +59,8 @@ void IMU::ImuTask(void *pvParameters) {
             imu.OnPositionChange(orient);
             cooldown = Clock::now();
 
-            auto item = 1;
-            xQueueSend(ImuReadyQueue, &item, 0);
+            // auto item = 1;
+            // xQueueSend(ImuReadyQueue, &item, 0);
             //todo delay deep_sleep on new pos!
 
             newPos = false;
@@ -213,8 +213,9 @@ void Imu::OnPositionChange(const Orientation& newOrient) {
         ESP_LOGW(__FILE__, "%s:%d. Wrong position detected. Not any of calibrated positions", __func__ ,__LINE__);
         return;
     }
-    // Save face and system time
+    // Item will hold values only of those two parameters
     PositionQueueType item(face, time(NULL));
+    // Save face and system time
     SavedPositions.Push(item);
 }
 

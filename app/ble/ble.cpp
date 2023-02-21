@@ -56,8 +56,7 @@ void BLE::BleTask(void *pvParameters) {
     // IMU Position service ------------------------------------
     BLE::Service positionService(uuidImuPositionService);
 
-    BLE::Characteristic positionCharacteristic(uuidImuPositionCharateristic, NIMBLE_PROPERTY::READ |
-                                                                            NIMBLE_PROPERTY::NOTIFY);
+    BLE::Characteristic positionCharacteristic(uuidImuPositionCharateristic, NIMBLE_PROPERTY::READ);
     positionCharacteristic.SetCallback(new Ble::ImuPositionCallback);
     positionService.AddCharacteristic(&positionCharacteristic);
 
