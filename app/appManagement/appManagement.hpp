@@ -71,7 +71,8 @@ void AppManagementTask(void *pvParameters) {
     //todo in an random scenario
 
     //todo check battery level. if below 20% sleep indefinetely/very loong
-    
+
+    //todo dont wakeup BLE until position has stabilized! imagine scenario when cube is in transport
 
     TaskDelay(10ms);
 

@@ -17,5 +17,8 @@ In order to start with your own DIY tracker you will go through these steps:
 ## Found a bug?
 If you found a :bug: please report it via issues tab
 
+## Troubleshooting
+- Firebeetle board not recognized (OS X): http://www.wch-ic.com/downloads/CH341SER_MAC_ZIP.html
+
 ## Known issues
 A lots. Todo!
