@@ -3,7 +3,7 @@
  *
  *  Created on: 31 Jan, 2023
  *      Author: macsli
- */
+*/
 
 #include "battery.hpp"
 #include "dateTime.hpp"
@@ -21,28 +21,39 @@ extern QueueHandle_t BatteryQueue;
 void BATTERY::BatteryTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
 
-    Battery battery(ADC1_CHANNEL_6); //see this macro description for details
+    // see ADCx_CHANNEL macro description for details
+#ifdef ARDUINO_LOLIN32_LITE
+    //todo lolin has no battery read pin
+    // Battery battery(ADC1_CHANNEL_6); // Lolinlite
+#endif
+#ifdef ARDUINO_FIREBEETLE32
+    Battery battery(ADC1_CHANNEL_2); // Firebeetle
+#endif
 
     for(;;) {
-        auto batPercent = battery.GetPercent();
-        ESP_LOGI(__FILE__, "%s:%d. Bat voltage: %.1f", __func__ ,__LINE__, batPercent);
-        if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
-            //overwrite existing value
-            xQueueOverwrite(BatteryQueue, &batPercent);
-        }
+        // auto batPercent = battery.GetPercent();
+        // if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
+        //     //overwrite existing value
+        //     xQueueOverwrite(BatteryQueue, &batPercent);
+        // }
         
         TaskDelay(1s);
     }
 }
 
 float Battery::GetPercent() {
-    //// theres two stage voltage divider on battery voltage
-    //// 1st *0.5, 2nd *0.3125
-    //// Vout(@adc_pin) = Vbat * 0.1563
-    //// Vbat = Vout(@adc_pin) / 0.1563; 1/0.1563 = 6.4
-
+    // theres two stage voltage divider on battery voltage
+    // 1st *0.5, 2nd *0.3125
+    // Vout(@adc_pin) = Vbat * 0.1563
+    // Vbat = Vout(@adc_pin) / 0.1563; 1/0.1563 = 6.4
+#ifdef ARDUINO_LOLIN32_LITE
+    auto voltage = GetAdcVoltage() * 6.4;
+#endif
     //firebeetle voltage divier: /2
+#ifdef ARDUINO_FIREBEETLE32
     auto voltage = GetAdcVoltage() * 2;
+#endif
+    ESP_LOGI(__FILE__, "%s:%d. VOLTAGE %.2f", __func__ ,__LINE__, voltage);
 
     if(voltage > voltageCx[11]) return 101;
 

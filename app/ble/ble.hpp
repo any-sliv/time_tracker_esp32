@@ -4,6 +4,7 @@
 #include "dateTime.hpp"
 #include "NimBLEServer.h"
 #include "NimBLEDevice.h"
+#include "NimBLECharacteristic.h"
 
 namespace BLE {
 
@@ -18,8 +19,9 @@ public:
     BLECharacteristicCallbacks *callback = nullptr;
     std::string uuid;
     uint32_t property;
-    uint16_t initValue;
-    Characteristic(const std::string& _uuid, uint32_t _property, const uint16_t _initValue = 0) : 
+    std::string initValue;
+    Characteristic() = delete;
+    Characteristic(const std::string& _uuid, uint32_t _property, const std::string& _initValue = "") : 
                     uuid(_uuid), property(_property), initValue(_initValue) {};
     // ~Characteristic() {};
 

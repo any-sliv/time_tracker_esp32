@@ -10,7 +10,6 @@
 #include "array"
 #include "gpio.hpp"
 #include "analogRead.hpp"
-#include "NimBLECharacteristic.h"
 
 namespace BATTERY {
 

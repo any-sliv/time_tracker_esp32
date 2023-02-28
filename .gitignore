@@ -2,7 +2,7 @@
 .pio/*
 .code-workspace
 .vscode
-ble/esp-nimble-cpp
+app/ble/esp-nimble-cpp
 
 # Prerequisites
 *.d

@@ -213,6 +213,7 @@ void Imu::OnPositionChange(const Orientation& newOrient) {
         ESP_LOGW(__FILE__, "%s:%d. Wrong position detected. Not any of calibrated positions", __func__ ,__LINE__);
         return;
     }
+    //todo reject from saving positions which has the same position as previous
     // Item will hold values only of those two parameters
     PositionQueueType item(face, time(NULL));
     // Save face and system time

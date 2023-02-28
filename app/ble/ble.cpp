@@ -1,18 +1,18 @@
 #include "ble.hpp"
-#include "esp_log.h"
-#include "string.h"
 #include "battery.hpp"
-#include "esp_bt.h"
+#include "imu.hpp"
 #include "NimBLEDevice.h"
 #include "NimBLEUtils.h"
 #include "NimBLEServer.h"
-#include "esp_sleep.h"
-#include "driver/rtc_io.h"
-#include "imu.hpp"
 
 extern "C" {
     #include <freertos/FreeRTOS.h>
     #include "freertos/queue.h"
+    #include "esp_bt.h"
+    #include "string.h"
+    #include "esp_log.h"
+    #include "driver/rtc_io.h"
+    #include "esp_sleep.h"
 } // extern C close
 
 using namespace BLE;
@@ -21,7 +21,6 @@ extern QueueHandle_t BatteryQueue;
 extern QueueHandle_t ImuPositionQueue;
 extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
-extern TaskHandle_t pwrTask;
 
 BLEServer * Ble::server = NULL;
 Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
@@ -35,9 +34,9 @@ const static constexpr char * uuidImuCalibrationCharateristic = "7bef916a-3141-1
 const static constexpr char * uuidSleepService = "646b8837-cea9-4006-be25-00c990029e90";
 const static constexpr char * uuidSleepCharacteristic = "646b8837-cea9-4006-be25-00c990029e91";
 
-const static constexpr char * uuidDeviceFirmwareUpdateService = "00001530-1212-efde-1523-785feabcd123"; 
-const static constexpr char * uuidDeviceFirmwareDataCharacteristic = "00001530-1212-efde-1523-785feabcd124"; 
-const static constexpr char * uuidDeviceFirmwareControlCharacteristic = "00001530-1212-efde-1523-785feabcd125"; 
+const static constexpr char * uuidDeviceFirmwareUpdateService = "00009921-1212-efde-1523-785feabcd123"; 
+const static constexpr char * uuidDeviceFirmwareDataCharacteristic = "00009921-1212-efde-1523-785feabcd124"; 
+const static constexpr char * uuidDeviceFirmwareControlCharacteristic = "00009921-1212-efde-1523-785feabcd125"; 
 
 // Bluetooth® SIG specified services/chars below
 
@@ -45,13 +44,9 @@ const static constexpr char * uuidDeviceFirmwareControlCharacteristic = "0000153
 const static constexpr char * uuidFirmwareRevision = "2A26";
 const static constexpr char * uuidManufacturerName = "2A29"; 
 
-const static constexpr char * uuidBatteryService = "180F"; 
-//todo same uuid?
-const static constexpr char * uuidBatteryCharacteristic = "2A19"; 
+const static constexpr char * uuidBattery = "2A19"; 
 
-const static constexpr char * uuidCurrentTimeService = "1805"; //todo 2A08 (date time), exact time 256 (2A0C)
-//todo same uuid?
-const static constexpr char * uuidCurrentTimeCharacteristic = "2A2B";
+const static constexpr char * uuidCurrentTime = "2A2B";
 
 
 void BLE::BleTask(void *pvParameters) {
@@ -63,14 +58,11 @@ void BLE::BleTask(void *pvParameters) {
     for(;;) {
         // Most of functionalities is done in BLE characteristic callbacks
 
-        timeval tv;
-        gettimeofday(&tv, NULL);
-        // If system time is not set (is older than 2000 year)
-        if(tv.tv_sec < 950565920) {
-            // vTaskSuspendAll();
-        }
+        //todo pairing process???
 
-        TaskDelay(100ms);
+        //todo register ESP_ERRORS and send them thru ble?
+
+        TaskDelay(1s);
     }
 }
 
@@ -114,25 +106,22 @@ void Ble::Init() {
 
     // Firmware revision service/characteristic
     BLE::Service firmwareRevisionService(uuidFirmwareRevision);
-    BLE::Characteristic firmwareRevisionCharacteristic(uuidFirmwareRevision, NIMBLE_PROPERTY::READ);
-    //todo its forbidden to set value in non-existing characteristic, use constructor parameter
-    // firmwareRevisionCharacteristic.SetValue("0.1.0"); //todo fetch from separate file (maintain version control)
+    //todo fetch from separate file (maintain version control)
+    BLE::Characteristic firmwareRevisionCharacteristic(uuidFirmwareRevision, NIMBLE_PROPERTY::READ, "0.1.0");
     firmwareRevisionService.AddCharacteristic(&firmwareRevisionCharacteristic);
     AddService(firmwareRevisionService);
     // ----------------------------------------------------------
 
     // Manufacturer name service/charateristic
     BLE::Service manufacturerNameService(uuidManufacturerName);
-    BLE::Characteristic manufacturerNameCharacteristic(uuidManufacturerName, NIMBLE_PROPERTY::READ);
-    //todo its forbidden to set value in non-existing characteristic, use constructor parameter
-    // manufacturerNameCharacteristic.SetValue("any-sliv_labs"); //todo fetch from separate file (maintain version control)
+    BLE::Characteristic manufacturerNameCharacteristic(uuidManufacturerName, NIMBLE_PROPERTY::READ, "any-sliv_labs");
     manufacturerNameService.AddCharacteristic(&manufacturerNameCharacteristic);
     AddService(manufacturerNameService);
     // ----------------------------------------------------------
 
     // Battery service
-    BLE::Service batteryService(uuidBatteryService);
-    BLE::Characteristic batteryCharateristic(uuidBatteryCharacteristic, NIMBLE_PROPERTY::READ |
+    BLE::Service batteryService(uuidBattery);
+    BLE::Characteristic batteryCharateristic(uuidBattery, NIMBLE_PROPERTY::READ |
                                                                         NIMBLE_PROPERTY::NOTIFY);
     batteryCharateristic.SetCallback(new Ble::BatteryCallback);
     batteryService.AddCharacteristic(&batteryCharateristic);
@@ -140,8 +129,8 @@ void Ble::Init() {
     // ----------------------------------------------------------
 
     // Current time service 
-    BLE::Service currentTimeService(uuidCurrentTimeService);
-    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTimeCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
+    BLE::Service currentTimeService(uuidCurrentTime);
+    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTime, NIMBLE_PROPERTY::WRITE_NR |
                                                                                 NIMBLE_PROPERTY::READ);
     currentTimeCharacteristic.SetCallback(new Ble::TimeCallback);
     currentTimeService.AddCharacteristic(&currentTimeCharacteristic);
@@ -154,7 +143,7 @@ void Ble::Init() {
 void Ble::Advertise() {
     BLEAdvertising *adv = BLEDevice::getAdvertising();
     adv->addServiceUUID(advServiceUuid);
-    adv->setScanResponse(true);
+    adv->setScanResponse(false);
     adv->setMinPreferred(0x06);
     // adv->setMinPreferred(0x12); 
     BLEDevice::startAdvertising();
@@ -162,7 +151,6 @@ void Ble::Advertise() {
 }
 
 void Ble::AddService(Service service) {
-    ESP_LOGI(__FILE__, "%s:%d. Adding service", __func__ ,__LINE__);
     if(server == NULL) {
         // No initialization required. Server guaranteed to be instantized.
         server = BLEDevice::createServer();
@@ -209,12 +197,16 @@ void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, Nim
 };
 
 void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
-    auto val = 0;
+    IMU::PositionQueueType item;
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onRead", __func__ ,__LINE__);
-    if(xQueueReceive(ImuCalibrationStateQueue, &val, 0) == pdTRUE) {
+    if(xQueueReceive(ImuCalibrationStateQueue, &item, 0) == pdTRUE) {
+        std::string data = std::to_string(item.face);
+        data += ",";
+        data += std::to_string(item.startTime);
+
         // Set calibration result. Details in IMU namespace
-        ESP_LOGI(__FILE__, "%s:%d. onRead value set: %d", __func__ ,__LINE__, val);
-        pCharacteristic->setValue(val);
+        ESP_LOGI(__FILE__, "%s:%d. onRead value set: %s", __func__ ,__LINE__, data.c_str());
+        pCharacteristic->setValue(data);
         // Client must clear value
     }
 }
@@ -233,7 +225,7 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
 
 void Ble::SleepCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
     // Sleep enter request from client
-    xTaskNotify(pwrTask, 0, eNoAction);
+    // xTaskNotify(pwrTask, 0, eNoAction);
 }
 
 void Ble::BatteryCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
