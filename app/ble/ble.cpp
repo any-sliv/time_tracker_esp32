@@ -21,6 +21,8 @@ extern QueueHandle_t BatteryQueue;
 extern QueueHandle_t ImuPositionQueue;
 extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
+extern QueueHandle_t SleepPauseQueue;
+extern QueueHandle_t SleepStartQueue;
 
 BLEServer * Ble::server = NULL;
 Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
@@ -31,8 +33,7 @@ const static constexpr char * uuidImuPositionService = "7bef916a-3141-11ed-a261-
 const static constexpr char * uuidImuPositionCharateristic = "7bef916a-3141-11ed-a261-0242ac120001";
 const static constexpr char * uuidImuCalibrationCharateristic = "7bef916a-3141-11ed-a261-0242ac120002";
 
-const static constexpr char * uuidSleepService = "646b8837-cea9-4006-be25-00c990029e90";
-const static constexpr char * uuidSleepCharacteristic = "646b8837-cea9-4006-be25-00c990029e91";
+const static constexpr char * uuidSleep = "646b8837-cea9-4006-be25-00c990029e90";
 
 const static constexpr char * uuidDeviceFirmwareUpdateService = "00009921-1212-efde-1523-785feabcd123"; 
 const static constexpr char * uuidDeviceFirmwareDataCharacteristic = "00009921-1212-efde-1523-785feabcd124"; 
@@ -43,11 +44,8 @@ const static constexpr char * uuidDeviceFirmwareControlCharacteristic = "0000992
 // For one characteristic services: service uuid = characteristic uuid
 const static constexpr char * uuidFirmwareRevision = "2A26";
 const static constexpr char * uuidManufacturerName = "2A29"; 
-
 const static constexpr char * uuidBattery = "2A19"; 
-
 const static constexpr char * uuidCurrentTime = "2A2B";
-
 
 void BLE::BleTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
@@ -85,8 +83,8 @@ void Ble::Init() {
     // ----------------------------------------------------------
 
     // Sleep service
-    BLE::Service sleepService(uuidSleepService);
-    BLE::Characteristic sleepCharacteristic(uuidSleepCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
+    BLE::Service sleepService(uuidSleep);
+    BLE::Characteristic sleepCharacteristic(uuidSleep, NIMBLE_PROPERTY::WRITE_NR);
     sleepCharacteristic.SetCallback(new Ble::SleepCallback);
     sleepService.AddCharacteristic(&sleepCharacteristic);
     AddService(sleepService);
@@ -218,6 +216,8 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
     if(val != 0) {
         // Initiate calibration
         xQueueSend(ImuCalibrationInitQueue, &val, 0);
+        // Pause sleep (with timeout). Resume it using BLE sleep characteristic
+        xQueueSend(SleepPauseQueue, "imuCalibration", 0);
     }
     // Clear request
     pCharacteristic->setValue(0);
@@ -225,7 +225,8 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
 
 void Ble::SleepCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
     // Sleep enter request from client
-    // xTaskNotify(pwrTask, 0, eNoAction);
+    auto item = 1;
+    xQueueSend(SleepStartQueue, &item, 0);
 }
 
 void Ble::BatteryCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {

@@ -21,49 +21,44 @@ extern QueueHandle_t ImuReadyQueue;
 extern QueueHandle_t ImuPositionQueue;
 extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
+extern QueueHandle_t SleepPauseQueue;
 
 // This data will be stored in case of deep sleep. And buffer can hold large number of
 // data in case of bluetooth connection lost. At reconnection will be sent.
 // Its size is determined in vector implementation.
 // Careful with size of RTC_DATA_ATTR. RTC memory has only 8kB
-//todo static member of imu class?
 RTC_DATA_ATTR SimpleVector<PositionQueueType> SavedPositions;
 RTC_DATA_ATTR Orientation oldPos;
+RTC_DATA_ATTR Timestamp cooldown;
+RTC_DATA_ATTR bool isNewPos;
 
 void IMU::ImuTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
 
+    Gpio imuGnd(22, Gpio::Mode::OUTPUT);
+    imuGnd.Reset();
     Imu imu;
-
     oldPos = imu.GetPositionRaw();
-    Timestamp cooldown = Clock::now();
-    bool newPos = false;
 
     for(;;) {
         Orientation orient = imu.GetPositionRaw();
-        // orient.PrintPosition();
 
         if(!(oldPos == orient)) {
-            newPos = true;
+            isNewPos = true;
             oldPos = orient;
             // Block OnPositionChange until cube is steady / user has flipped completely
             cooldown = Clock::now();
-
-            // Defer sleep
-            // auto item = 1;
-            // xQueueSend(ImuReadyQueue, &item, 0);
         }
 
-        if(Clock::now() - cooldown > Imu::rollCooldown && newPos) {
+        if(Clock::now() - cooldown > Imu::rollCooldown && isNewPos) {
             // New position detected.
             imu.OnPositionChange(orient);
-            cooldown = Clock::now();
 
-            // auto item = 1;
-            // xQueueSend(ImuReadyQueue, &item, 0);
-            //todo delay deep_sleep on new pos!
+            auto item = 1;
+            // todo Delay sleep??? maybe delete it?
+            xQueueSend(ImuReadyQueue, &item, 0);
 
-            newPos = false;
+            isNewPos = false;
         }
 
         // Send batched data from vector to BLE
@@ -103,6 +98,7 @@ Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
         ESP_LOGE(__FILE__, "%s:%d. Could not initialise IMU. Task suspended", __func__ ,__LINE__);
         vTaskSuspend(NULL);
     }
+    ESP_LOGI(__FILE__, "%s:%d. MPU6050 init done", __func__ ,__LINE__);
 
     KALMAN pfilter(0.005);
     KALMAN rfilter(0.005);
