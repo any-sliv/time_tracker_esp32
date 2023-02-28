@@ -1,6 +1,6 @@
 # Cube Time Tracker ESP32
 
-**:exclamation: This project is still under heavy development.**
+**:exclamation: This project is still under heavy development. First release is coming!**
 </br>
 
 </br>
