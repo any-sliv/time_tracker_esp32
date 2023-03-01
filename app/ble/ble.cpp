@@ -65,7 +65,9 @@ void BLE::BleTask(void *pvParameters) {
 }
 
 void Ble::Init() {
-    BLEDevice::init("Time tracker");
+    std::string name = "Time tracker";
+    BLEDevice::init(name);
+    //todo real advertised name is "Ti" instead of "Time Tracker", someting wong
 
     // Scheme: Callback to characteristic. Characteristics to service. 
 
@@ -232,7 +234,7 @@ void Ble::SleepCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEC
 void Ble::BatteryCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
     // Latest battery value is set after reading from char. Read twice to get latest data.
     ESP_LOGI(__FILE__, "%s:%d. Battery read", __func__ ,__LINE__);
-    float batteryValue = 0.0;
+    int batteryValue = 0.0;
     // Receive battery percent from battery task
     if(xQueueReceive(BatteryQueue, &batteryValue, 0) == pdTRUE) {
         pCharacteristic->setValue(batteryValue);

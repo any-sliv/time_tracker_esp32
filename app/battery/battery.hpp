@@ -33,7 +33,7 @@ public:
     /**
      * @return Percentage value of battery. '0' or multiple of 10
      */
-    float GetPercent();
+    int GetPercent();
 
     // ChargeState GetChargeState(void);
 };
