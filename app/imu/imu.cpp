@@ -153,7 +153,6 @@ int Imu::CalibrateCubeFaces() {
     // Let the cube stabilize
     TaskDelay(200ms);
     auto positionToSave = GetPositionRaw();
-    positionToSave.PrintPosition();
 
     if(checkCalibration(positionToSave)) {
         // If this position exists in memory
@@ -241,7 +240,6 @@ bool Imu::checkCalibration() {
         Orientation tmp;
         //Return false if flash hasn't no. of positions == cubeFaces
         auto res = nvs.get(nvsEntry.c_str(), tmp.pos);
-        tmp.PrintPosition();
         if(res != ESP_OK) {
             return false;
         }

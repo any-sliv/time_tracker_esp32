@@ -65,9 +65,7 @@ void BLE::BleTask(void *pvParameters) {
 }
 
 void Ble::Init() {
-    std::string name = "Time tracker";
-    BLEDevice::init(name);
-    //todo real advertised name is "Ti" instead of "Time Tracker", someting wong
+    BLEDevice::init("Time tracker");
 
     // Scheme: Callback to characteristic. Characteristics to service. 
 
@@ -197,16 +195,11 @@ void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, Nim
 };
 
 void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
-    IMU::PositionQueueType item;
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onRead", __func__ ,__LINE__);
+    int item = 0;
     if(xQueueReceive(ImuCalibrationStateQueue, &item, 0) == pdTRUE) {
-        std::string data = std::to_string(item.face);
-        data += ",";
-        data += std::to_string(item.startTime);
-
         // Set calibration result. Details in IMU namespace
-        ESP_LOGI(__FILE__, "%s:%d. onRead value set: %s", __func__ ,__LINE__, data.c_str());
-        pCharacteristic->setValue(data);
+        pCharacteristic->setValue(item);
         // Client must clear value
     }
 }

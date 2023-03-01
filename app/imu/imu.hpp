@@ -113,9 +113,9 @@ public:
     void OnPositionChange(const Orientation& newOrient);
 
 private:
-    const static constexpr int cubeFaces = 3;
-    const static constexpr gpio_num_t pinSda = (gpio_num_t) 23; //23lolin(?gnd) //21firebeetle
-    const static constexpr gpio_num_t pinScl = (gpio_num_t) 19; //19lolin(?gnd) //22firebeetle
+    const static constexpr int cubeFaces = 9;
+    const static constexpr gpio_num_t pinSda = (gpio_num_t) 21; //23lolin(?gnd) //21firebeetle
+    const static constexpr gpio_num_t pinScl = (gpio_num_t) 22; //19lolin(?gnd) //22firebeetle
     const static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_0;
 
     NVS::Nvs nvs;
