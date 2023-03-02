@@ -16,20 +16,22 @@ void ImuTask(void *pvParameters);
 struct PositionQueueType {
     PositionQueueType() : face(0), startTime(0) {};
     PositionQueueType(int _face, int _time) : face(_face), startTime(_time) {};
+
     unsigned int face;
     time_t startTime;
 };
 
 // User is responsible for not exceeding size boundaries when using Pop() or Push()
 // This "vector" is implementation specific. Not a generic class for any type (I tried)
-template<typename T>
+template<typename Type, int SizeT>
 class SimpleVector {
-    int activeItems = 0;
-    std::array<T, 50> elements;
+    int activeItems;
+    std::array<Type, SizeT> elements;
 public:
-    SimpleVector() {};
+    // Leave a default construtor if class is used with RTC_DATA_ATTR
+    SimpleVector() = default;
 
-    size_t size() {
+    constexpr size_t Size() {
         return elements.size();
     }
 
@@ -37,8 +39,12 @@ public:
         return activeItems;
     }
 
-    T Pop() {
-        auto retItem = elements[activeItems];
+    Type Pop() {
+        if(activeItems == 0) {
+            // Prevent from returning item with index -1
+            return elements[0];
+        }
+        Type retItem = elements[activeItems];
         // Yes. That's how I clear an element.
         elements[activeItems].face = 0;
         // ----------------------------------
@@ -46,7 +52,7 @@ public:
         return retItem;
     }
 
-    void Push(T &item) {
+    void Push(Type item) {
         elements[activeItems + 1] = item;
         activeItems++;
     }
@@ -107,10 +113,11 @@ public:
     Orientation GetPositionRaw(void);
 
     /**
-     * @brief Saves position in RTCdata memory (NVS).
+     * @brief Saves position in RTCdata memory.
      * @param newOrient new orientation
+     * @return bool if position is accepted (1 success)
      */
-    void OnPositionChange(const Orientation& newOrient);
+    bool OnPositionChange(const Orientation& newOrient);
 
 private:
     const static constexpr int cubeFaces = 9;

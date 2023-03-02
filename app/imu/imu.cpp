@@ -19,6 +19,7 @@ using namespace IMU;
 // RTOS queues
 extern QueueHandle_t ImuReadyQueue;
 extern QueueHandle_t ImuPositionQueue;
+extern QueueHandle_t ImuPositionGetQueue;
 extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
 extern QueueHandle_t SleepPauseQueue;
@@ -26,8 +27,8 @@ extern QueueHandle_t SleepPauseQueue;
 // This data will be stored in case of deep sleep. And buffer can hold large number of
 // data in case of bluetooth connection lost. At reconnection will be sent.
 // Its size is determined in vector implementation.
-// Careful with size of RTC_DATA_ATTR. RTC memory has only 8kB
-RTC_DATA_ATTR SimpleVector<PositionQueueType> SavedPositions;
+// Careful about size with RTC_DATA_ATTR (must be global). RTC memory has only 8kB. 
+RTC_DATA_ATTR SimpleVector<PositionQueueType, 50> SavedPositions;
 RTC_DATA_ATTR Orientation oldPos;
 RTC_DATA_ATTR Timestamp cooldown;
 RTC_DATA_ATTR bool isNewPos;
@@ -38,7 +39,6 @@ void IMU::ImuTask(void *pvParameters) {
     Gpio imuGnd(22, Gpio::Mode::OUTPUT);
     imuGnd.Reset();
     Imu imu;
-    oldPos = imu.GetPositionRaw();
 
     for(;;) {
         Orientation orient = imu.GetPositionRaw();
@@ -51,29 +51,33 @@ void IMU::ImuTask(void *pvParameters) {
         }
 
         if(Clock::now() - cooldown > Imu::rollCooldown && isNewPos) {
-            // New position detected.
-            imu.OnPositionChange(orient);
-
-            auto item = 1;
-            // todo Delay sleep??? maybe delete it?
-            xQueueSend(ImuReadyQueue, &item, 0);
-
+            // New position detected
+            if(imu.OnPositionChange(orient)) {
+                // New position accepted
+                auto item = 1;
+                // todo Delay sleep??? maybe delete it?
+                xQueueSend(ImuReadyQueue, &item, 0);
+            }
             isNewPos = false;
         }
 
+        PositionQueueType item;
         // Send batched data from vector to BLE
-        while(uxQueueSpacesAvailable(ImuPositionQueue) > 0 && SavedPositions.GetActiveItems() > 0) {
+        if(xQueueReceive(ImuPositionGetQueue, &item, 0)) {
             // Initiate send only if there are items available
-            ESP_LOGI(__FILE__, "%s:%d. Active items: %d", __func__ ,__LINE__, SavedPositions.GetActiveItems());
-            // Pop item from vector
-            auto item = SavedPositions.Pop();
+            if(SavedPositions.GetActiveItems()) {
+                // Pop item from vector
+                item = SavedPositions.Pop();
+                const char * msg = "imuSendPosition";
+                // Defer sleep. Let someone process the data
+                xQueueSend(SleepPauseQueue, &msg, 0);
+            }
             xQueueSend(ImuPositionQueue, &item, 0);
-            // This while cannot lock itself. If queue is full while condition is not met
         }
 
         // If BLE initiated calibration...
         auto val = 0;
-        if(xQueueReceive(ImuCalibrationInitQueue, &val, 0) == pdTRUE) {
+        if(xQueueReceive(ImuCalibrationInitQueue, &val, 0)) {
             if(val != 0) {
                 auto ret = imu.CalibrateCubeFaces();
                 xQueueSend(ImuCalibrationStateQueue, &ret, 0);
@@ -130,9 +134,6 @@ int Imu::CalibrateCubeFaces() {
                 ESP_LOGE(__FILE__, "%s:%d. Could not save flash", __func__ ,__LINE__);
                 return CalibrationStatus::ERROR;
             }
-        }
-        else {
-            ESP_LOGI(__FILE__, "%s:%d. 1", __func__ ,__LINE__);
         }
         //else; cal == 0 - everything's fine. go do the stuff
     } 
@@ -193,26 +194,36 @@ Orientation Imu::GetPositionRaw() {
     return Orientation(-getAccX(), -getAccY(), -getAccZ());
 }
 
-void Imu::OnPositionChange(const Orientation& newOrient) {
+bool Imu::OnPositionChange(const Orientation& newOrient) {
     // Each write in RTC_DATA_ATTR SavedPositions is "saving". This data is retained during sleep.
-    ESP_LOGI(__FILE__, "%s:%d. New position", __func__ ,__LINE__);
-    
-    if(SavedPositions.GetActiveItems() >= SavedPositions.size()) {
+
+    if(SavedPositions.GetActiveItems() >= SavedPositions.Size()) {
         ESP_LOGW(__FILE__, "%s:%d. Could not save position. RTC Memory array full.", __func__ ,__LINE__);
-        return;
+        return false;
     }
 
     auto face = DetectFace(newOrient);
 
     if(face == -1) {
         ESP_LOGW(__FILE__, "%s:%d. Wrong position detected. Not any of calibrated positions", __func__ ,__LINE__);
-        return;
+        return false;
     }
-    //todo reject from saving positions which has the same position as previous
+
+    PositionQueueType prevPos = SavedPositions.Pop();
+    // Put back item we popped. Copy will persist
+    SavedPositions.Push(prevPos);
+    if(prevPos.face == face) {
+        // Same position as before, dont save it
+        return false;
+    }
+
     // Item will hold values only of those two parameters
     PositionQueueType item(face, time(NULL));
     // Save face and system time
     SavedPositions.Push(item);
+    ESP_LOGI(__FILE__, "%s:%d. New position", __func__ ,__LINE__);
+    
+    return true;
 }
 
 int Imu::getNoOfCalibratedPositions() {

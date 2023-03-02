@@ -19,6 +19,7 @@ using namespace BLE;
 
 extern QueueHandle_t BatteryQueue;
 extern QueueHandle_t ImuPositionQueue;
+extern QueueHandle_t ImuPositionGetQueue;
 extern QueueHandle_t ImuCalibrationInitQueue;
 extern QueueHandle_t ImuCalibrationStateQueue;
 extern QueueHandle_t SleepPauseQueue;
@@ -181,23 +182,22 @@ void Ble::ServerCallbacks::onDisconnect(BLEServer * server, NimBLEConnInfo& conn
 
 void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     IMU::PositionQueueType item;
-    // Receive from IMU current face cube is lying on
-    if(xQueueReceive(ImuPositionQueue, &item, 0) == pdTRUE) {
+    xQueueSend(ImuPositionGetQueue, &item, 0);
+    // Mind that these are two separate queues
+    if(xQueueReceive(ImuPositionQueue, &item, 0)) {
         std::string text = std::to_string(item.startTime) + "," + std::to_string(item.face);
-        ESP_LOGI(__FILE__, "%s:%d. BLE got item from IMU %s", __func__ ,__LINE__, text.c_str());
-        
         pCharacteristic->setValue(text);
-    } else {
+    } 
+    else {
+        // Item not received
         pCharacteristic->setValue(0);
     }
-
-    //todo delay deep_sleep by 50ms to let client read
-};
+}
 
 void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onRead", __func__ ,__LINE__);
     int item = 0;
-    if(xQueueReceive(ImuCalibrationStateQueue, &item, 0) == pdTRUE) {
+    if(xQueueReceive(ImuCalibrationStateQueue, &item, 0)) {
         // Set calibration result. Details in IMU namespace
         pCharacteristic->setValue(item);
         // Client must clear value
@@ -229,7 +229,7 @@ void Ble::BatteryCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLE
     ESP_LOGI(__FILE__, "%s:%d. Battery read", __func__ ,__LINE__);
     int batteryValue = 0.0;
     // Receive battery percent from battery task
-    if(xQueueReceive(BatteryQueue, &batteryValue, 0) == pdTRUE) {
+    if(xQueueReceive(BatteryQueue, &batteryValue, 0)) {
         pCharacteristic->setValue(batteryValue);
     }
 }
