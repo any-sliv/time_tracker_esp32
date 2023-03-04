@@ -28,7 +28,7 @@ extern QueueHandle_t SleepPauseQueue;
 // data in case of bluetooth connection lost. At reconnection will be sent.
 // Its size is determined in vector implementation.
 // Careful about size with RTC_DATA_ATTR (must be global). RTC memory has only 8kB. 
-RTC_DATA_ATTR SimpleVector<PositionQueueType, 50> SavedPositions;
+RTC_DATA_ATTR SimpleVector<PositionQueueType, 100> SavedPositions;
 RTC_DATA_ATTR Orientation oldPos;
 RTC_DATA_ATTR Timestamp cooldown;
 RTC_DATA_ATTR bool isNewPos;
@@ -39,7 +39,7 @@ void IMU::ImuTask(void *pvParameters) {
     Gpio imuGnd(22, Gpio::Mode::OUTPUT);
     imuGnd.Reset();
     Imu imu;
-
+    
     for(;;) {
         Orientation orient = imu.GetPositionRaw();
 
@@ -68,11 +68,12 @@ void IMU::ImuTask(void *pvParameters) {
             if(SavedPositions.GetActiveItems()) {
                 // Pop item from vector
                 item = SavedPositions.Pop();
+                xQueueSend(ImuPositionQueue, &item, 0);
+
                 const char * msg = "imuSendPosition";
                 // Defer sleep. Let someone process the data
                 xQueueSend(SleepPauseQueue, &msg, 0);
             }
-            xQueueSend(ImuPositionQueue, &item, 0);
         }
 
         // If BLE initiated calibration...

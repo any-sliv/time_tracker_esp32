@@ -14,7 +14,7 @@ namespace IMU {
 void ImuTask(void *pvParameters);
 
 struct PositionQueueType {
-    PositionQueueType() : face(0), startTime(0) {};
+    PositionQueueType() {};
     PositionQueueType(int _face, int _time) : face(_face), startTime(_time) {};
 
     unsigned int face;
@@ -29,7 +29,6 @@ class SimpleVector {
     std::array<Type, SizeT> elements;
 public:
     // Leave a default construtor if class is used with RTC_DATA_ATTR
-    SimpleVector() = default;
 
     constexpr size_t Size() {
         return elements.size();
@@ -61,6 +60,7 @@ public:
 // Used for x,y,z position data operation
 class Orientation {
 public:
+    //if somethings wrong with this class when waking up from sleep just remove constructors
     Orientation() {};
 
     Orientation(float x, float y, float z) : pos({x, y, z}) {};

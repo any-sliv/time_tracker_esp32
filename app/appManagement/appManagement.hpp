@@ -64,7 +64,6 @@ static void sleep(std::chrono::duration<long long, std::micro> duration) {
     // gpio_reset_pin(GPIO_NUM_37);
     // gpio_reset_pin(GPIO_NUM_38);
     // gpio_reset_pin(GPIO_NUM_39);
-    // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
 
     if(BLE::Ble::state == BLE::Ble::ConnectionState::CONNECTED) {
         //todo this is probably unsafe, but it crashed when ble is not initialized before
@@ -150,9 +149,10 @@ void AppManagementTask(void *pvParameters) {
         }
 
         // Is it the time to sleep?
-        // WILL SLEEP IMMEDIATELY IF SYSTEM TIME WAS UPDATED?
+        // WILL SLEEP IMMEDIATELY IF SYSTEM TIME WAS UPDATED!
+        //todo fix it? ^
         if(Clock::now() >= sleepCooldown) {
-            // sleep(5s);
+            sleep(20s);
         }
         TaskDelay(10ms);
     }
