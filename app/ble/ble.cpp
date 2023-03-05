@@ -248,7 +248,7 @@ void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLECo
     }
 
     time_t receivedTime;
-    memcpy(&receivedTime, value.data(), 4);
+    memcpy(&receivedTime, value.data(), sizeof(time_t));
 
     timeval tv = {.tv_sec = receivedTime, .tv_usec = 0};
     settimeofday(&tv, NULL);
