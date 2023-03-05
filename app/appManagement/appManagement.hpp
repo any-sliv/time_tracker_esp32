@@ -11,7 +11,6 @@
 #include "dateTime.hpp"
 
 extern "C" {
-    #include "driver/adc.h"
     #include "freertos/FreeRTOS.h"
     #include "freertos/task.h"
     #include "esp_sleep.h"
@@ -23,8 +22,8 @@ extern "C" {
 #define TASK_STACK_DEPTH_MORE (6U * 1024U)
 #define TASK_PRIORITY_NORMAL (3U)
 
-//todo add some info about queues
-//todo simplify queues???
+//TODO add some info about queues
+//TODO simplify queues???
 QueueHandle_t BatteryQueue = xQueueCreate(1, sizeof(float));
 QueueHandle_t ImuReadyQueue = xQueueCreate(1, sizeof(uint8_t));
 QueueHandle_t ImuPositionQueue = xQueueCreate(1, sizeof(IMU::PositionQueueType));
@@ -44,8 +43,8 @@ static void sleep(std::chrono::duration<long long, std::micro> duration) {
     
     // Tasks to do before going to deep sleep!
 
-    // rtc_gpio_isolate(GPIO_NUM_2);
-    // rtc_gpio_isolate(GPIO_NUM_12); //todo idk if it affects anything. brought it cuz of esp-idf reference recommendation
+    rtc_gpio_isolate(GPIO_NUM_2);
+    rtc_gpio_isolate(GPIO_NUM_12); //TODO idk if it affects anything. brought it cuz of esp-idf reference recommendation
     // gpio_reset_pin(GPIO_NUM_0);
     // gpio_reset_pin(GPIO_NUM_2);
     // gpio_reset_pin(GPIO_NUM_4);
@@ -64,14 +63,16 @@ static void sleep(std::chrono::duration<long long, std::micro> duration) {
     // gpio_reset_pin(GPIO_NUM_37);
     // gpio_reset_pin(GPIO_NUM_38);
     // gpio_reset_pin(GPIO_NUM_39);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+    // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC8M, ESP_PD_OPTION_ON);
+
 
     if(BLE::Ble::state == BLE::Ble::ConnectionState::CONNECTED) {
-        //todo this is probably unsafe, but it crashed when ble is not initialized before
         BLEDevice::deinit();
     }
 
-    //todo Firebeetle board deep sleep consumption: 1.6mA. Huge, spent a day trying to fix. 
-    //todo No signs of possible improvements so far :(
+    //TODO Firebeetle board deep sleep consumption: 1.6mA. Huge, spent a day trying to fix. 
+    //TODO No signs of possible improvements so far :(
     ESP_LOGI(__FILE__, "%s:%d. zzz...", __func__ ,__LINE__);
     esp_deep_sleep_start();
     // Remember - after deep sleep whole application CPU will run application from the start
@@ -81,9 +82,9 @@ static void sleep(std::chrono::duration<long long, std::micro> duration) {
 void AppManagementTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
 
-    xTaskHandle imuTask;
-    xTaskHandle bleTask;
-    xTaskHandle batteryTask;
+    TaskHandle_t imuTask;
+    TaskHandle_t bleTask;
+    TaskHandle_t batteryTask;
 
     auto res = xTaskCreate(IMU::ImuTask, "ImuTask", TASK_STACK_DEPTH_NORMAL, NULL, 
                                         TASK_PRIORITY_NORMAL, &imuTask);
@@ -100,7 +101,7 @@ void AppManagementTask(void *pvParameters) {
     configASSERT(res);
     vTaskSuspend(bleTask);
 
-    //todo check battery level. if below 20% sleep indefinetely/very loong
+    //TODO check battery level. if below 20% sleep indefinetely/very loong
 
     // If you want to debug device, see whats going on without it
     // going to sleep so quick all the time: increase this cooldown!
@@ -108,8 +109,6 @@ void AppManagementTask(void *pvParameters) {
     Timestamp sleepCooldown = Clock::now() + 200ms;
 
     for(;;) {
-        //todo suspend imu if system time not set
-
         if(BLE::Ble::state == BLE::Ble::ConnectionState::CONNECTED) {
             lastBle = Clock::now();
         }
@@ -150,7 +149,7 @@ void AppManagementTask(void *pvParameters) {
 
         // Is it the time to sleep?
         // WILL SLEEP IMMEDIATELY IF SYSTEM TIME WAS UPDATED!
-        //todo fix it? ^
+        //TODO fix it? ^
         if(Clock::now() >= sleepCooldown) {
             sleep(20s);
         }

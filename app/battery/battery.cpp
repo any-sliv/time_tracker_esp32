@@ -22,20 +22,17 @@ void BATTERY::BatteryTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
 
     // see ADCx_CHANNEL macro description for details
-    Battery battery(ADC1_CHANNEL_6); // Lolinlite
-#ifdef ARDUINO_LOLIN32_LITE
-    //todo lolin has no battery read pin
-#endif
-#ifdef ARDUINO_FIREBEETLE32
-    Battery battery(ADC1_CHANNEL_2); // Firebeetle
-#endif
+    // Battery battery(ADC1_CHANNEL_6); // Lolinlite
+
+    //TODO lolin has no battery read pin
+    Battery battery(ADC_UNIT_1, ADC_CHANNEL_6); // Firebeetle
 
     for(;;) {
-        auto batPercent = battery.GetPercent();
-        if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
+        // auto batPercent = battery.GetPercent();
+        // if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
             //overwrite existing value
-            xQueueOverwrite(BatteryQueue, &batPercent);
-        }
+            // xQueueOverwrite(BatteryQueue, &batPercent);
+        // }
         
         TaskDelay(1s);
     }
@@ -51,17 +48,17 @@ int Battery::GetPercent() {
 #endif
     //firebeetle voltage divier: /2
 // #ifdef ARDUINO_FIREBEETLE32
-    auto voltage = GetAdcVoltage() * 2;
-// #endif
+//     auto voltage = GetAdcVoltage() * 2;
+// // #endif
 
-    if(voltage > voltageCx[11]) return 101;
+//     if(voltage > voltageCx[11]) return 101;
 
-    for (uint8_t i = 0; i < voltageCx.size(); i++) {
-        if(voltage > voltageCx[i]) {
-            if(voltage < voltageCx[i + 1]) {
-                return i * 10;
-            }
-        }
-    }
+//     for (uint8_t i = 0; i < voltageCx.size(); i++) {
+//         if(voltage > voltageCx[i]) {
+//             if(voltage < voltageCx[i + 1]) {
+//                 return i * 10;
+//             }
+//         }
+//     }
     return 0;
 }

@@ -27,8 +27,7 @@ private:
 public:
     Battery() = delete;
     
-    Battery(adc1_channel_t pin) : AnalogRead(pin) {};
-    Battery(adc2_channel_t pin) : AnalogRead(pin) {};
+    Battery(adc_unit_t unit, adc_channel_t channel) : AnalogRead(unit, channel) {};
     
     /**
      * @return Percentage value of battery. '0' or multiple of 10

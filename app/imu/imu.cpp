@@ -55,7 +55,6 @@ void IMU::ImuTask(void *pvParameters) {
             if(imu.OnPositionChange(orient)) {
                 // New position accepted
                 auto item = 1;
-                // todo Delay sleep??? maybe delete it?
                 xQueueSend(ImuReadyQueue, &item, 0);
             }
             isNewPos = false;
@@ -117,11 +116,11 @@ Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
 }
 
 int Imu::CalibrateCubeFaces() {
-    //todo if calibration was interrupted, calibration is still '0' and process continues from middle instead of
-    //todo beginning with erasing
+    //TODO if calibration was interrupted, calibration is still '0' and process continues from middle instead of
+    //TODO beginning with erasing
     int cal = 0;
     auto nvsReadStatus = nvs.get("calibration", cal);
-    //todo simplify with 'goto'?
+    //TODO simplify with 'goto'?
     if(nvsReadStatus == ESP_OK) {
         if(cal == 1) {
             ESP_LOGW(__FILE__, "%s:%d. New calibration initiated. Erasing calibration.", __func__ ,__LINE__);
@@ -166,7 +165,7 @@ int Imu::CalibrateCubeFaces() {
     std::string nvsEntry{"pos"};
     nvsEntry += std::to_string(positions);
 
-    //todo check if you can save whole orientation object
+    //TODO check if you can save whole orientation object
     // Saving in flash using pos<faceNumber> key
     auto ret = nvs.set(nvsEntry.c_str(), positionToSave.pos);
     if(ret != ESP_OK) {

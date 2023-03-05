@@ -18,7 +18,7 @@ typedef std::chrono::system_clock Clock;
  */
 template<typename T>
 constexpr TickType_t ConvertToTicks(T time) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(time).count() / portTICK_RATE_MS;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(time).count() / portTICK_PERIOD_MS;
 }
 
 template<typename T>

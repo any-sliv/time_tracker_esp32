@@ -5,64 +5,69 @@
  *      Author: macsli
  */
 
-#include "driver/adc.h"
-#include "esp_adc_cal.h"
-#include "driver/adc_common.h"
-#include "esp_log.h"
 
-#if CONFIG_IDF_TARGET_ESP32
-#define ADC_EXAMPLE_CALI_SCHEME     ESP_ADC_CAL_VAL_EFUSE_VREF
-#elif CONFIG_IDF_TARGET_ESP32S2
-#define ADC_EXAMPLE_CALI_SCHEME     ESP_ADC_CAL_VAL_EFUSE_TP
-#elif CONFIG_IDF_TARGET_ESP32C3
-#define ADC_EXAMPLE_CALI_SCHEME     ESP_ADC_CAL_VAL_EFUSE_TP
-#elif CONFIG_IDF_TARGET_ESP32S3
-#define ADC_EXAMPLE_CALI_SCHEME     ESP_ADC_CAL_VAL_EFUSE_TP_FIT
-#endif
+extern "C" {
+    #include "esp_adc/adc_oneshot.h"
+    #include "esp_adc/adc_cali.h"
+    #include "esp_adc/adc_cali_scheme.h"
+    #include "esp_log.h"
+} // extern C close
+
+
 
 class AnalogRead {
 private:
-    esp_adc_cal_characteristics_t adc_chars;
-    adc1_channel_t pin1;
-    adc2_channel_t pin2;
+    adc_unit_t unit;
+    adc_channel_t channel;
+    adc_oneshot_unit_handle_t handle;
+    adc_cali_handle_t cali;
 
 public:
     AnalogRead() = delete;
-    AnalogRead(adc1_channel_t _pin) : pin1(_pin), pin2((adc2_channel_t) -1) {
-        esp_err_t ret;
+    AnalogRead(adc_unit_t _unit, adc_channel_t _channel) : unit(_unit), channel(_channel) {
+        esp_err_t ret = ESP_FAIL;
+        bool calibrated;
+        adc_oneshot_unit_init_cfg_t adcConfig;
+        adcConfig.unit_id = unit;
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&adcConfig, &handle));
 
-        ret = esp_adc_cal_check_efuse(ADC_EXAMPLE_CALI_SCHEME);
-        if (ret == ESP_ERR_NOT_SUPPORTED) {
-            ESP_LOGW(__FILE__, "Calibration scheme not supported, skip software calibration");
-        } else if (ret == ESP_ERR_INVALID_VERSION) {
-            ESP_LOGW(__FILE__, "eFuse not burnt, skip software calibration");
-        } else if (ret == ESP_OK) {
-            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_11db, (adc_bits_width_t) ADC_WIDTH_BIT_DEFAULT, 0, &adc_chars);
-        } else {
-            ESP_LOGE(__FILE__, "Invalid arg");
+        adc_oneshot_chan_cfg_t config {.atten = ADC_ATTEN_DB_11, .bitwidth = ADC_BITWIDTH_DEFAULT};
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(handle, channel, &config));
+
+    #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+        if (!calibrated) {
+            adc_cali_curve_fitting_config_t cali_config = {
+                .unit_id = unit,
+                .atten = atten,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+            if (ret == ESP_OK) {
+                calibrated = true;
+            }
         }
+    #endif
 
-        adc1_config_width(ADC_WIDTH_12Bit);
-        // Careful - attenuation does reduce input voltage range
-        adc1_config_channel_atten(pin1, ADC_ATTEN_DB_11);
-    };
-
-    AnalogRead(adc2_channel_t _pin) : pin1((adc1_channel_t) -1), pin2(_pin) {
-        esp_err_t ret;
-
-        ret = esp_adc_cal_check_efuse(ADC_EXAMPLE_CALI_SCHEME);
-        if (ret == ESP_ERR_NOT_SUPPORTED) {
-            ESP_LOGW(__FILE__, "Calibration scheme not supported, skip software calibration");
-        } else if (ret == ESP_ERR_INVALID_VERSION) {
-            ESP_LOGW(__FILE__, "eFuse not burnt, skip software calibration");
-        } else if (ret == ESP_OK) {
-            esp_adc_cal_characterize(ADC_UNIT_2, ADC_ATTEN_11db, (adc_bits_width_t) ADC_WIDTH_BIT_DEFAULT, 0, &adc_chars);
-        } else {
-            ESP_LOGE(__FILE__, "Invalid arg");
+    #if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+        if (!calibrated) {
+            adc_cali_line_fitting_config_t cali_config = {
+                .unit_id = unit,
+                .atten = ADC_ATTEN_DB_11,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            ret = adc_cali_create_scheme_line_fitting(&cali_config, &cali);
+            if (ret == ESP_OK) {
+                calibrated = true;
+            }
         }
-
-        // Careful - attenuation does reduce input voltage range
-        adc2_config_channel_atten(pin2, ADC_ATTEN_DB_11);
+    #endif
+        if (ret == ESP_OK) {
+            ESP_LOGI("ADC", "Calibration Success");
+        } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+            ESP_LOGW("ADC", "eFuse not burnt, skip software calibration");
+        } else {
+            ESP_LOGE("ADC", "Invalid arg or no memory");
+        }
     };
 
     /**
@@ -70,18 +75,14 @@ public:
     * @return value of ADC measurement
     */
     int GetAdcValue() {
-        if((int)pin1 == -1) {
-            int rawOut = 0;
-            adc2_get_raw(pin2, ADC_WIDTH_12Bit, &rawOut);
-            return rawOut;
-        }
-        else {
-            return adc1_get_raw(pin1);
-        }
-        return 0;
+        int out;
+        adc_oneshot_read(handle, channel, &out);
+        return out;
     }
 
     float GetAdcVoltage() {
-        return (float)(esp_adc_cal_raw_to_voltage(GetAdcValue(), &adc_chars)) / 1000;
+        int out;
+        adc_cali_raw_to_voltage(cali, GetAdcValue(), &out) / 1000;
+        return out;
     }
 };

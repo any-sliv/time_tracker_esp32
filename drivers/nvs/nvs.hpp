@@ -21,7 +21,6 @@ namespace NVS
 /// @brief Non-volatile Storage Partition Interface
 ///
 /// @attention Intended for one instance per partition, not multiple
-/// TODO Make this copyable and threadsafe
 class Nvs
 {
     const char* const   _log_tag{nullptr};          ///< cstring of logging tag

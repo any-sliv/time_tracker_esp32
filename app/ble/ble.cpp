@@ -57,9 +57,9 @@ void BLE::BleTask(void *pvParameters) {
     for(;;) {
         // Most of functionalities is done in BLE characteristic callbacks
 
-        //todo pairing process???
+        //TODO pairing process???
 
-        //todo register ESP_ERRORS and send them thru ble?
+        //TODO register ESP_ERRORS and send them thru ble?
 
         TaskDelay(1s);
     }
@@ -95,17 +95,17 @@ void Ble::Init() {
     BLE::Service deviceFirmwareUpdateService(uuidDeviceFirmwareUpdateService);
     BLE::Characteristic deviceFirmwareControlCharacteristic(uuidDeviceFirmwareControlCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
                                                                                                     NIMBLE_PROPERTY::READ);
-    //todo set callback
+    //TODO set callback
     deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareControlCharacteristic);
     BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
-    //todo set callback
+    //TODO set callback
     deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareDataCharacteristic);
     AddService(deviceFirmwareUpdateService);
     // ----------------------------------------------------------
 
     // Firmware revision service/characteristic
     BLE::Service firmwareRevisionService(uuidFirmwareRevision);
-    //todo fetch from separate file (maintain version control)
+    //TODO fetch from separate file (maintain version control)
     BLE::Characteristic firmwareRevisionCharacteristic(uuidFirmwareRevision, NIMBLE_PROPERTY::READ, "0.1.0");
     firmwareRevisionService.AddCharacteristic(&firmwareRevisionCharacteristic);
     AddService(firmwareRevisionService);
@@ -170,7 +170,6 @@ void Ble::AddService(Service service) {
 void Ble::ServerCallbacks::onConnect(BLEServer * server, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. BLE connection established!", __func__ ,__LINE__);
     Ble::state = Ble::ConnectionState::CONNECTED;
-    //todo stopping adv quickly sometimes makes device not able to connect to
     BLEDevice::stopAdvertising();
 }
 
@@ -207,7 +206,7 @@ void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, 
 void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onWrite", __func__ ,__LINE__);
     auto val = *pCharacteristic->getValue().data();
-    //todo do calibration cancel!
+    //TODO do calibration cancel!
     if(val != 0) {
         // Initiate calibration
         xQueueSend(ImuCalibrationInitQueue, &val, 0);
@@ -253,5 +252,5 @@ void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLECo
 
     timeval tv = {.tv_sec = receivedTime, .tv_usec = 0};
     settimeofday(&tv, NULL);
-    ESP_LOGI(__FILE__, "%s:%d. Time updated (epoch): %d", __func__ ,__LINE__, (uint32_t) receivedTime);
+    ESP_LOGI(__FILE__, "%s:%d. Time updated (epoch): %d", __func__ ,__LINE__, (unsigned int) receivedTime);
 }

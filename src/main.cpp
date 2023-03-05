@@ -18,8 +18,6 @@ extern "C" {
     #include <sdkconfig.h>
 } // extern C close
 
-//todo bruh. use firebeetle esp32. very low deep sleep current consumption!
-
 extern "C" void app_main() {
     BaseType_t res = pdFAIL;
 
