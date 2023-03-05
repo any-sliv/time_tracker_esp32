@@ -82,7 +82,8 @@ public:
 
     float GetAdcVoltage() {
         int out;
-        adc_cali_raw_to_voltage(cali, GetAdcValue(), &out) / 1000;
-        return out;
+        adc_cali_raw_to_voltage(cali, GetAdcValue(), &out);
+        float volt = (float)out;
+        return volt / 1000;
     }
 };

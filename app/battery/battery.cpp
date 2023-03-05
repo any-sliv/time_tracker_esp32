@@ -28,11 +28,11 @@ void BATTERY::BatteryTask(void *pvParameters) {
     Battery battery(ADC_UNIT_1, ADC_CHANNEL_6); // Firebeetle
 
     for(;;) {
-        // auto batPercent = battery.GetPercent();
-        // if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
-            //overwrite existing value
-            // xQueueOverwrite(BatteryQueue, &batPercent);
-        // }
+        auto batPercent = battery.GetPercent();
+        if(xQueueSend(BatteryQueue, &batPercent, 0) == pdFALSE) {
+            // overwrite existing value
+            xQueueOverwrite(BatteryQueue, &batPercent);
+        }
         
         TaskDelay(1s);
     }
@@ -44,21 +44,19 @@ int Battery::GetPercent() {
     // Vout(@adc_pin) = Vbat * 0.1563
     // Vbat = Vout(@adc_pin) / 0.1563; 1/0.1563 = 6.4
 #ifdef ARDUINO_LOLIN32_LITE
-    // auto voltage = GetAdcVoltage() * 6.4;
+    auto voltage = GetAdcVoltage() * 6.4;
 #endif
     //firebeetle voltage divier: /2
 // #ifdef ARDUINO_FIREBEETLE32
-//     auto voltage = GetAdcVoltage() * 2;
-// // #endif
+    auto voltage = GetAdcVoltage() * 2;
+// #endif
 
-//     if(voltage > voltageCx[11]) return 101;
-
-//     for (uint8_t i = 0; i < voltageCx.size(); i++) {
-//         if(voltage > voltageCx[i]) {
-//             if(voltage < voltageCx[i + 1]) {
-//                 return i * 10;
-//             }
-//         }
-//     }
+    for (uint8_t i = 0; i < voltageCx.size(); i++) {
+        if(voltage > voltageCx[i]) {
+            if(voltage < voltageCx[i + 1]) {
+                return i * 10;
+            }
+        }
+    }
     return 0;
 }
