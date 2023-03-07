@@ -3,10 +3,13 @@
 **:exclamation: This project is still under heavy development. First release is coming!**
 </br>
 
+![:game_die: tracker](docs/images/cubeDemo.jpg) 
+
 </br>
 
 Your personal time tracker in a form of cube. Each wall has a symbol which describes activity you might be doing. Flip the wall and the clock is ticking! Cube pairs with a **desktop app**, which allows you to see your insights on time you spent on particular activities. 
 </br>
+
 
 In order to start with your own DIY tracker you will go through these steps:
 - :hammer: Obtain and build hardware (esp32 board, accelometer board, battery and enclosure)
