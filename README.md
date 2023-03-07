@@ -21,4 +21,4 @@ If you found a :bug: please report it via issues tab
 - Firebeetle board not recognized (OS X): http://www.wch-ic.com/downloads/CH341SER_MAC_ZIP.html
 
 ## Known issues
-A lots. Todo!
+Time drifts +/- 5%. Changed from RTC clock source from internal RC to internal 8 MHz clock; didn't help

@@ -119,6 +119,14 @@ public:
      */
     bool OnPositionChange(const Orientation& newOrient);
 
+    /**
+     * @brief Pass the current orientation, func will return
+     *      face number the cube is facing upwards
+     * @param orient struct, current orientation
+     * @return Face number (>0), or -1 in case of error/not calibrated
+     */
+    int DetectFace(const Orientation& orient);
+
 private:
     const static constexpr int cubeFaces = 9;
     const static constexpr gpio_num_t pinSda = (gpio_num_t) 21; //23lolin(?gnd) //21firebeetle
@@ -155,14 +163,6 @@ private:
      * @return true if success
      */
     bool eraseCalibration();
-
-    /**
-     * @brief Pass the current orientation, func will return
-     *      face number the cube is facing upwards
-     * @param orient struct, current orientation
-     * @return Face number (>0), or -1 in case of error
-     */
-    int DetectFace(const Orientation& orient);
 };
 
 }; // Namespace end ------------------

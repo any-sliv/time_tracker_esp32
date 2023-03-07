@@ -24,14 +24,14 @@ extern "C" {
 
 //TODO add some info about queues
 //TODO simplify queues???
-QueueHandle_t BatteryQueue = xQueueCreate(1, sizeof(float));
+QueueHandle_t BatteryQueue = xQueueCreate(1, sizeof(int));
 QueueHandle_t ImuReadyQueue = xQueueCreate(1, sizeof(uint8_t));
 QueueHandle_t ImuPositionQueue = xQueueCreate(1, sizeof(IMU::PositionQueueType));
-QueueHandle_t ImuPositionGetQueue = xQueueCreate(1, 1);
-QueueHandle_t ImuCalibrationInitQueue = xQueueCreate(1, 1);
-QueueHandle_t ImuCalibrationStateQueue = xQueueCreate(1, 1);
+QueueHandle_t ImuPositionGetQueue = xQueueCreate(1, sizeof(uint8_t));
+QueueHandle_t ImuCalibrationInitQueue = xQueueCreate(1, sizeof(uint8_t));
+QueueHandle_t ImuCalibrationStateQueue = xQueueCreate(1, sizeof("x,xx"));
 QueueHandle_t SleepPauseQueue = xQueueCreate(1,16);
-QueueHandle_t SleepStartQueue = xQueueCreate(1,1);
+QueueHandle_t SleepStartQueue = xQueueCreate(1, sizeof(uint8_t));
 
 namespace APP {
 

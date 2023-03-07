@@ -35,9 +35,7 @@ RTC_DATA_ATTR bool isNewPos;
 
 void IMU::ImuTask(void *pvParameters) {
     ESP_LOGI(__FILE__, "%s:%d. Task init", __func__ ,__LINE__);
-
-    Gpio imuGnd(22, Gpio::Mode::OUTPUT);
-    imuGnd.Reset();
+    
     Imu imu;
     
     for(;;) {
@@ -80,7 +78,10 @@ void IMU::ImuTask(void *pvParameters) {
         if(xQueueReceive(ImuCalibrationInitQueue, &val, 0)) {
             if(val != 0) {
                 auto ret = imu.CalibrateCubeFaces();
-                xQueueSend(ImuCalibrationStateQueue, &ret, 0);
+                auto face = imu.DetectFace(orient);
+                // Create a string "x,xx" containing calibration status and calibrated face
+                std::string calibrationStatus = std::to_string(ret) + std::to_string(face);
+                xQueueSend(ImuCalibrationStateQueue, calibrationStatus.data(), 0);
             }
         }
 
@@ -138,12 +139,10 @@ int Imu::CalibrateCubeFaces() {
         //else; cal == 0 - everything's fine. go do the stuff
     } 
     else if(nvsReadStatus == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGI(__FILE__, "%s:%d. 3", __func__ ,__LINE__);
         if(nvs.set("calibration", 0) != ESP_OK) {
             ESP_LOGE(__FILE__, "%s:%d. Could not save flash", __func__ ,__LINE__);
             return CalibrationStatus::ERROR;
         }
-        ESP_LOGI(__FILE__, "%s:%d. 2", __func__ ,__LINE__);
     }
     else {
         ESP_LOGE(__FILE__, "%s:%d. Could not read from flash", __func__ ,__LINE__);
@@ -195,7 +194,7 @@ Orientation Imu::GetPositionRaw() {
 }
 
 bool Imu::OnPositionChange(const Orientation& newOrient) {
-    // Each write in RTC_DATA_ATTR SavedPositions is "saving". This data is retained during sleep.
+    // Each write in RTC_DATA_ATTR SavedPositions is "saving". This data is retained during sleep/wake cycles.
 
     if(SavedPositions.GetActiveItems() >= SavedPositions.Size()) {
         ESP_LOGW(__FILE__, "%s:%d. Could not save position. RTC Memory array full.", __func__ ,__LINE__);
@@ -206,11 +205,10 @@ bool Imu::OnPositionChange(const Orientation& newOrient) {
 
     if(face == -1) {
         ESP_LOGW(__FILE__, "%s:%d. Wrong position detected. Not any of calibrated positions", __func__ ,__LINE__);
-        return false;
     }
 
     PositionQueueType prevPos = SavedPositions.Pop();
-    // Put back item we popped. Copy will persist
+    // Put back item we popped
     SavedPositions.Push(prevPos);
     if(prevPos.face == face) {
         // Same position as before, dont save it
@@ -287,12 +285,12 @@ bool Imu::eraseCalibration() {
 }
 
 int Imu::DetectFace(const Orientation& orient) {
-    // Faces start from 1, they're a real thing. Face = 0 -> empty entry
+    // Faces start from 1, they're a real thing.
     for(auto i = 1; i <= Imu::cubeFaces; i++) {
         std::string nvsEntry{"pos"};
         nvsEntry += std::to_string(i);
         // Read from flash using pos<faceNumber> key
-        Orientation savedPos;
+        Orientation savedPos(0,0,0);
         auto ret = nvs.get(nvsEntry.c_str(), savedPos.pos);
         if(ret != ESP_OK) {
             ESP_LOGE(__FILE__, "%s:%d. Could not read flash", __func__ ,__LINE__);

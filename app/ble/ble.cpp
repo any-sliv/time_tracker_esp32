@@ -80,6 +80,7 @@ void Ble::Init() {
                                                                                     NIMBLE_PROPERTY::READ);  
     calibrationCharacteristic.SetCallback(new Ble::ImuCalibrationCallback);
     positionService.AddCharacteristic(&calibrationCharacteristic);
+
     AddService(positionService);
     // ----------------------------------------------------------
 
@@ -186,11 +187,8 @@ void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, Nim
     if(xQueueReceive(ImuPositionQueue, &item, 0)) {
         std::string text = std::to_string(item.startTime) + "," + std::to_string(item.face);
         pCharacteristic->setValue(text);
+        // Client must clear value
     } 
-    else {
-        // Item not received
-        pCharacteristic->setValue(0);
-    }
 }
 
 void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
