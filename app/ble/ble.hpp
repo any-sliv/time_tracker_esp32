@@ -1,10 +1,14 @@
 #pragma once
 
-#include <list>
+#include <memory>
 #include "dateTime.hpp"
 #include "NimBLEServer.h"
 #include "NimBLEDevice.h"
 #include "NimBLECharacteristic.h"
+
+extern "C" {
+    #include "esp_ota_ops.h"
+} // extern C close
 
 namespace BLE {
 
@@ -62,14 +66,14 @@ public:
 
 class Ble {
     static BLEServer * server;
-    
+    static esp_ota_handle_t otaHandle;
 public:
+    enum class ConnectionState { IDLE, ADVERTISING, CONNECTED, DISCONNECTED };
+    static ConnectionState state;
+
     static void Init();
 
     static void Advertise();
-
-    enum class ConnectionState { IDLE, ADVERTISING, CONNECTED, DISCONNECTED };
-    static ConnectionState state;
 
     static void AddService(Service service);
 
@@ -107,6 +111,28 @@ public:
     // Callbacks of time characteristics in BLE communication
     class TimeCallback : public NimBLECharacteristicCallbacks {
         void onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
+        void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
+    };
+
+    class OtaControlCallback : public NimBLECharacteristicCallbacks {
+        const esp_partition_t* partitionHandle;
+
+        enum OtaStatus {
+            OTA_CONTROL_NOP,
+            OTA_CONTROL_REQUEST,
+            OTA_CONTROL_REQUEST_ACK,
+            OTA_CONTROL_REQUEST_NAK,
+            OTA_CONTROL_DONE,
+            OTA_CONTROL_DONE_ACK,
+            OTA_CONTROL_DONE_NAK,
+        };
+
+        // void onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
+        void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
+    };
+
+    class OtaDataCallback : public NimBLECharacteristicCallbacks {
+        uint16_t rcvPkg = 0;
         void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
     };
 };
