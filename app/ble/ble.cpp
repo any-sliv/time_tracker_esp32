@@ -26,6 +26,7 @@ extern QueueHandle_t SleepPauseQueue;
 extern QueueHandle_t SleepStartQueue;
 
 BLEServer * Ble::server = NULL;
+esp_ota_handle_t Ble::otaHandle = NULL;
 Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
 
 const std::string advServiceUuid = "8227dcb2-30e3-11ed-a261-0242ac120002";
@@ -129,11 +130,11 @@ void Ble::Init() {
     BLE::Service deviceFirmwareUpdateService(uuidDeviceFirmwareUpdateService);
     BLE::Characteristic deviceFirmwareControlCharacteristic(uuidDeviceFirmwareControlCharacteristic, NIMBLE_PROPERTY::WRITE |
                                                                                                     NIMBLE_PROPERTY::READ);
-    //TODO set callback
+    deviceFirmwareControlCharacteristic.SetCallback(new Ble::OtaControlCallback);
     deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareControlCharacteristic);
-    BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE |
-                                                                                                NIMBLE_PROPERTY::NOTIFY);
-    //TODO set callback
+
+    BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE);
+    deviceFirmwareDataCharacteristic.SetCallback(new Ble::OtaDataCallback);
     deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareDataCharacteristic);
     AddService(deviceFirmwareUpdateService);
     // ----------------------------------------------------------
@@ -257,7 +258,9 @@ void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLECo
 }
 
 void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
-    auto rcv = *pCharacteristic->getValue().data();
+    NimBLEAttValue chrRcv = pCharacteristic->getValue();
+    unsigned int rcv = (unsigned int) *chrRcv.data();
+    ESP_LOGI(__FILE__, "%s:%d. OTA Request: %d", __func__ ,__LINE__, rcv);
     if(rcv == OTA_CONTROL_REQUEST) {
         ESP_LOGI(__FILE__, "%s:%d. OTA Requested via BLE", __func__ ,__LINE__);
         partitionHandle = esp_ota_get_next_update_partition(NULL);
@@ -267,10 +270,10 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
             return;
         }
 
-        auto status = esp_ota_begin(partitionHandle, OTA_WITH_SEQUENTIAL_WRITES, &otaHandle);
+        auto status = esp_ota_begin(partitionHandle, OTA_WITH_SEQUENTIAL_WRITES, &Ble::otaHandle);
         if(status != ESP_OK) {
             ESP_LOGE(__FILE__, "%s:%d. OTA Error. %s", __func__ ,__LINE__, esp_err_to_name(status));
-            esp_ota_abort(otaHandle);
+            esp_ota_abort(Ble::otaHandle);
             pCharacteristic->setValue(OTA_CONTROL_REQUEST_NAK);
             return;
         }
@@ -282,14 +285,13 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         }
 
         ESP_LOGI(__FILE__, "%s:%d. OTA Begin", __func__ ,__LINE__);
-        // Defer sleep for OTA
         xQueueSend(SleepPauseQueue, "otaUpdate", 0);
 
         pCharacteristic->setValue(OTA_CONTROL_REQUEST_ACK);
     } 
     else if (rcv == OTA_CONTROL_DONE) {
         ESP_LOGI(__FILE__, "%s:%d. OTA Request to end update", __func__ ,__LINE__);
-        auto status = esp_ota_end(otaHandle);
+        auto status = esp_ota_end(Ble::otaHandle);
         if(status != ESP_OK) {
             ESP_LOGE(__FILE__, "%s:%d. OTA Error. %s", __func__ ,__LINE__, esp_err_to_name(status));
             pCharacteristic->setValue(OTA_CONTROL_DONE_NAK);
@@ -308,8 +310,9 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         ESP_LOGI(__FILE__, "%s:%d. OTA Success. Rebooting...", __func__ ,__LINE__);
         pCharacteristic->setValue(OTA_CONTROL_DONE_ACK);
         TaskDelay(1s);
-        BLEDevice::deinit();
-        esp_restart();
+        // when calling esp_restart OS is stuck
+        // workaround is to sleep after OTA, first reboot fails, then next one is fine
+        xQueueSend(SleepPauseQueue, "otaDone", 0);
     }
     else {
         ESP_LOGW(__FILE__, "%s:%d. OTA Unkown request", __func__ ,__LINE__);
@@ -320,11 +323,13 @@ void Ble::OtaDataCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBL
     NimBLEAttValue pkg = pCharacteristic->getValue();
     auto len = pkg.length();
 
-    auto status = esp_ota_write(otaHandle, pkg.c_str(), len);
+    //TODO sometimes (dont know why sometimes) OTA tranmission is very slow
+    ESP_LOGI(__FILE__, "%s:%d. Received packet %d", __func__ ,__LINE__, rcvPkg);
+    auto status = esp_ota_write(Ble::otaHandle, pkg.c_str(), len);
     if(status == ESP_ERR_INVALID_ARG) {
         ESP_LOGE(__FILE__, "%s:%d. OTA Data write. %s", __func__ ,__LINE__, esp_err_to_name(status));
         // Notify in case of an error
         pCharacteristic->notify();
     }
-    // pkgsReceived++; ??
+    rcvPkg++;
 }

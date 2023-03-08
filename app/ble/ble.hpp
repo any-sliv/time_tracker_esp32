@@ -127,11 +127,12 @@ public:
             OTA_CONTROL_DONE_NAK,
         };
 
-        void onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
+        // void onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
         void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
     };
 
     class OtaDataCallback : public NimBLECharacteristicCallbacks {
+        uint16_t rcvPkg = 0;
         void onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo);
     };
 };
