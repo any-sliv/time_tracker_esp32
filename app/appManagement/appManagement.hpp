@@ -139,6 +139,9 @@ void AppManagementTask(void *pvParameters) {
             else if(message == "imuSendPosition") {
                 sleepCooldown = Clock::now() + 1s;
             }
+            else if(message == "otaUpdate") {
+                sleepCooldown = Clock::now() + 5min;
+            }
         }
 
         // Someone requested immediate sleep

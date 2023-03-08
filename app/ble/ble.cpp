@@ -76,7 +76,7 @@ void Ble::Init() {
     positionCharacteristic.SetCallback(new Ble::ImuPositionCallback);
     positionService.AddCharacteristic(&positionCharacteristic);
 
-    BLE::Characteristic calibrationCharacteristic(uuidImuCalibrationCharateristic, NIMBLE_PROPERTY::WRITE_NR |
+    BLE::Characteristic calibrationCharacteristic(uuidImuCalibrationCharateristic, NIMBLE_PROPERTY::WRITE |
                                                                                     NIMBLE_PROPERTY::READ);  
     calibrationCharacteristic.SetCallback(new Ble::ImuCalibrationCallback);
     positionService.AddCharacteristic(&calibrationCharacteristic);
@@ -86,22 +86,10 @@ void Ble::Init() {
 
     // Sleep service
     BLE::Service sleepService(uuidSleep);
-    BLE::Characteristic sleepCharacteristic(uuidSleep, NIMBLE_PROPERTY::WRITE_NR);
+    BLE::Characteristic sleepCharacteristic(uuidSleep, NIMBLE_PROPERTY::WRITE);
     sleepCharacteristic.SetCallback(new Ble::SleepCallback);
     sleepService.AddCharacteristic(&sleepCharacteristic);
     AddService(sleepService);
-    // ----------------------------------------------------------
-
-    // Device firmware update service
-    BLE::Service deviceFirmwareUpdateService(uuidDeviceFirmwareUpdateService);
-    BLE::Characteristic deviceFirmwareControlCharacteristic(uuidDeviceFirmwareControlCharacteristic, NIMBLE_PROPERTY::WRITE_NR |
-                                                                                                    NIMBLE_PROPERTY::READ);
-    //TODO set callback
-    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareControlCharacteristic);
-    BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE_NR);
-    //TODO set callback
-    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareDataCharacteristic);
-    AddService(deviceFirmwareUpdateService);
     // ----------------------------------------------------------
 
     // Firmware revision service/characteristic
@@ -130,11 +118,24 @@ void Ble::Init() {
 
     // Current time service 
     BLE::Service currentTimeService(uuidCurrentTime);
-    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTime, NIMBLE_PROPERTY::WRITE_NR |
+    BLE::Characteristic currentTimeCharacteristic(uuidCurrentTime, NIMBLE_PROPERTY::WRITE |
                                                                                 NIMBLE_PROPERTY::READ);
     currentTimeCharacteristic.SetCallback(new Ble::TimeCallback);
     currentTimeService.AddCharacteristic(&currentTimeCharacteristic);
     AddService(currentTimeService);
+    // ----------------------------------------------------------
+
+    // Device firmware update service
+    BLE::Service deviceFirmwareUpdateService(uuidDeviceFirmwareUpdateService);
+    BLE::Characteristic deviceFirmwareControlCharacteristic(uuidDeviceFirmwareControlCharacteristic, NIMBLE_PROPERTY::WRITE |
+                                                                                                    NIMBLE_PROPERTY::READ);
+    //TODO set callback
+    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareControlCharacteristic);
+    BLE::Characteristic deviceFirmwareDataCharacteristic(uuidDeviceFirmwareDataCharacteristic, NIMBLE_PROPERTY::WRITE |
+                                                                                                NIMBLE_PROPERTY::NOTIFY);
+    //TODO set callback
+    deviceFirmwareUpdateService.AddCharacteristic(&deviceFirmwareDataCharacteristic);
+    AddService(deviceFirmwareUpdateService);
     // ----------------------------------------------------------
 
     Advertise();
@@ -203,6 +204,7 @@ void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, 
 
 void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onWrite", __func__ ,__LINE__);
+    //TODO change to notify!
     auto val = *pCharacteristic->getValue().data();
     //TODO do calibration cancel!
     if(val != 0) {
@@ -217,6 +219,7 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
 
 void Ble::SleepCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
     // Sleep enter request from client
+    //TODO change to notify!
     auto item = 1;
     xQueueSend(SleepStartQueue, &item, 0);
 }
@@ -238,7 +241,7 @@ void Ble::TimeCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLECon
 }
 
 void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
-    // 4 bytes of epoch seconds time should be received
+    // sizeof(time_t) bytes of epoch seconds time should be received
     NimBLEAttValue value = pCharacteristic->getValue();
     if(value.length() != sizeof(time_t)) {
         ESP_LOGE(__FILE__, "%s:%d. Time characteristic wrong format", __func__ ,__LINE__);
@@ -251,4 +254,77 @@ void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLECo
     timeval tv = {.tv_sec = receivedTime, .tv_usec = 0};
     settimeofday(&tv, NULL);
     ESP_LOGI(__FILE__, "%s:%d. Time updated (epoch): %d", __func__ ,__LINE__, (unsigned int) receivedTime);
+}
+
+void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
+    auto rcv = *pCharacteristic->getValue().data();
+    if(rcv == OTA_CONTROL_REQUEST) {
+        ESP_LOGI(__FILE__, "%s:%d. OTA Requested via BLE", __func__ ,__LINE__);
+        partitionHandle = esp_ota_get_next_update_partition(NULL);
+        if(partitionHandle == NULL) {
+            ESP_LOGE(__FILE__, "%s:%d. OTA Could not get partition", __func__ ,__LINE__);
+            pCharacteristic->setValue(OTA_CONTROL_REQUEST_NAK);
+            return;
+        }
+
+        auto status = esp_ota_begin(partitionHandle, OTA_WITH_SEQUENTIAL_WRITES, &otaHandle);
+        if(status != ESP_OK) {
+            ESP_LOGE(__FILE__, "%s:%d. OTA Error. %s", __func__ ,__LINE__, esp_err_to_name(status));
+            esp_ota_abort(otaHandle);
+            pCharacteristic->setValue(OTA_CONTROL_REQUEST_NAK);
+            return;
+        }
+
+        auto mtu = connInfo.getMTU();
+        if(mtu < 250) {
+            ESP_LOGW(__FILE__, "%s:%d. OTA: BLE MTU low %d", __func__ ,__LINE__, mtu);
+            //TODO negotiate higher mtu
+        }
+
+        ESP_LOGI(__FILE__, "%s:%d. OTA Begin", __func__ ,__LINE__);
+        // Defer sleep for OTA
+        xQueueSend(SleepPauseQueue, "otaUpdate", 0);
+
+        pCharacteristic->setValue(OTA_CONTROL_REQUEST_ACK);
+    } 
+    else if (rcv == OTA_CONTROL_DONE) {
+        ESP_LOGI(__FILE__, "%s:%d. OTA Request to end update", __func__ ,__LINE__);
+        auto status = esp_ota_end(otaHandle);
+        if(status != ESP_OK) {
+            ESP_LOGE(__FILE__, "%s:%d. OTA Error. %s", __func__ ,__LINE__, esp_err_to_name(status));
+            pCharacteristic->setValue(OTA_CONTROL_DONE_NAK);
+            return;
+        }
+
+        //TODO check image version
+
+        status = esp_ota_set_boot_partition(partitionHandle);
+        if(status != ESP_OK) {
+            ESP_LOGE(__FILE__, "%s:%d. OTA Error. %s", __func__ ,__LINE__, esp_err_to_name(status));
+            pCharacteristic->setValue(OTA_CONTROL_DONE_NAK);
+            return;
+        }
+
+        ESP_LOGI(__FILE__, "%s:%d. OTA Success. Rebooting...", __func__ ,__LINE__);
+        pCharacteristic->setValue(OTA_CONTROL_DONE_ACK);
+        TaskDelay(1s);
+        BLEDevice::deinit();
+        esp_restart();
+    }
+    else {
+        ESP_LOGW(__FILE__, "%s:%d. OTA Unkown request", __func__ ,__LINE__);
+    }
+}
+
+void Ble::OtaDataCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
+    NimBLEAttValue pkg = pCharacteristic->getValue();
+    auto len = pkg.length();
+
+    auto status = esp_ota_write(otaHandle, pkg.c_str(), len);
+    if(status == ESP_ERR_INVALID_ARG) {
+        ESP_LOGE(__FILE__, "%s:%d. OTA Data write. %s", __func__ ,__LINE__, esp_err_to_name(status));
+        // Notify in case of an error
+        pCharacteristic->notify();
+    }
+    // pkgsReceived++; ??
 }

@@ -30,7 +30,7 @@ Mind that tracker is a low power device and its juice comes from battery, so try
     </br>
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
-    | uint32_t | 4 | Epoch (unix) time | READ + WRITE_NR |
+    | uint32_t | 4 | Epoch (unix) time | READ + WRITE |
 
     Device has no RTC battery, thus it might lose time. Using this characteristic device can have its system time updated.
     Device updates value onRead action. Read twice to get actual value.
@@ -39,7 +39,7 @@ Mind that tracker is a low power device and its juice comes from battery, so try
   - **Sleep** (UUID: 646b8837-cea9-4006-be25-00c990029e91)
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
-    | uint8_t | 1 | Sleep request | WRITE_NR |
+    | uint8_t | 1 | Sleep request | WRITE |
 
     Device stays in sleep mode most of the time. Use this characteristic to force device to enter sleep mode. Recommended to use after done with processing all data from the tracker. Write (uint8_t)<1> to force sleep.
 
@@ -63,7 +63,7 @@ Mind that tracker is a low power device and its juice comes from battery, so try
     </br>
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
-    | uint8_t | 1 | Client request or server response | WRITE_NR + READ |
+    | uint8_t | 1 | Client request or server response | WRITE + READ |
 
     Calibration characteristic is used during initial configuration to calibrate IMU/accelometer. Requests from client initiate calibration and server responds with result. Client initiates calibration of each position/face/wall with writing (uint8_t)<1> to the characteristic. Table below represents values server might set as a result.
 
