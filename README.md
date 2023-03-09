@@ -3,7 +3,7 @@
 **:exclamation: This project is still under heavy development. First release is coming!**
 </br>
 
-![:game_die: tracker](docs/images/cubeDemo.jpg) 
+![:game_die: tracker](docs/images/cubeDemo.png) 
 
 </br>
 
