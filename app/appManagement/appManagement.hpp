@@ -99,7 +99,7 @@ void AppManagementTask(void *pvParameters) {
     res = xTaskCreate(BLE::BleTask, "BleTask", TASK_STACK_DEPTH_MORE, NULL, 
                                         TASK_PRIORITY_NORMAL, &bleTask);
     configASSERT(res);
-    // vTaskSuspend(bleTask);
+    vTaskSuspend(bleTask);
 
     //TODO check battery level. if below 20% sleep indefinetely/very loong
 
@@ -142,9 +142,6 @@ void AppManagementTask(void *pvParameters) {
             else if(message == "otaUpdate") {
                 sleepCooldown = Clock::now() + 5min;
             }
-            else if(message == "otaDone") {
-                sleep(1ms);
-            }
         }
 
         // Someone requested immediate sleep
@@ -157,7 +154,7 @@ void AppManagementTask(void *pvParameters) {
         // WILL SLEEP IMMEDIATELY IF SYSTEM TIME WAS UPDATED!
         //TODO fix it? ^
         if(Clock::now() >= sleepCooldown) {
-            // sleep(20s);
+            sleep(20s);
         }
         TaskDelay(10ms);
     }

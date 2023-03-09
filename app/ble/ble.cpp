@@ -189,14 +189,17 @@ void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, Nim
     if(xQueueReceive(ImuPositionQueue, &item, 0)) {
         std::string text = std::to_string(item.startTime) + "," + std::to_string(item.face);
         pCharacteristic->setValue(text);
-        // Client must clear value
-    } 
+    }
+    else {
+        pCharacteristic->setValue(0);
+    }
 }
 
 void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onRead", __func__ ,__LINE__);
-    int item = 0;
+    char item[5] = {};
     if(xQueueReceive(ImuCalibrationStateQueue, &item, 0)) {
+        const std::string data(item);
         // Set calibration result. Details in IMU namespace
         pCharacteristic->setValue(item);
         // Client must clear value
@@ -205,7 +208,6 @@ void Ble::ImuCalibrationCallback::onRead(NimBLECharacteristic* pCharacteristic, 
 
 void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. Calibration callback onWrite", __func__ ,__LINE__);
-    //TODO change to notify!
     auto val = *pCharacteristic->getValue().data();
     //TODO do calibration cancel!
     if(val != 0) {
@@ -312,7 +314,8 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         TaskDelay(1s);
         // when calling esp_restart OS is stuck
         // workaround is to sleep after OTA, first reboot fails, then next one is fine
-        xQueueSend(SleepPauseQueue, "otaDone", 0);
+        auto item = 0;
+        xQueueSend(SleepStartQueue, &item, 0);
     }
     else {
         ESP_LOGW(__FILE__, "%s:%d. OTA Unkown request", __func__ ,__LINE__);

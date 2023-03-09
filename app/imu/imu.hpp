@@ -21,17 +21,15 @@ struct PositionQueueType {
     time_t startTime;
 };
 
-// User is responsible for not exceeding size boundaries when using Pop() or Push()
-// This "vector" is implementation specific. Not a generic class for any type (I tried)
 template<typename Type, int SizeT>
 class SimpleVector {
-    int activeItems;
+    unsigned int activeItems;
     std::array<Type, SizeT> elements;
 public:
     // Leave a default construtor if class is used with RTC_DATA_ATTR
 
-    constexpr size_t Size() {
-        return elements.size();
+    constexpr int Size() {
+        return SizeT;
     }
 
     int GetActiveItems() {
@@ -44,28 +42,39 @@ public:
             return elements[0];
         }
         Type retItem = elements[activeItems];
-        // Yes. That's how I clear an element.
-        elements[activeItems].face = 0;
-        // ----------------------------------
         activeItems--;
         return retItem;
     }
 
     void Push(Type item) {
+        if(activeItems + 1 > SizeT) {
+            // Prevent from returning item beyond array boundaries
+            return;
+        }
         elements[activeItems + 1] = item;
         activeItems++;
+    }
+
+    bool isDuplicate(Type item) {
+        if(!activeItems) {
+            return false;
+        }
+
+        for(int i = 0; i < activeItems; i++) {
+            if(elements[i] == item) {
+                return true;
+            }
+        }
+        return false;
     }
 };
 
 // Used for x,y,z position data operation
 class Orientation {
 public:
-    //if somethings wrong with this class when waking up from sleep just remove constructors
     Orientation() {};
 
     Orientation(float x, float y, float z) : pos({x, y, z}) {};
-    // Copy constructor
-    Orientation(const Orientation& orient) : pos(orient.pos) {};
 
     std::array<float, 3> pos; // x, y, z
 
@@ -96,18 +105,21 @@ class Imu : private MPU6050 {
 public:
     const static constexpr std::chrono::milliseconds taskPeriod = 10ms;
     const static constexpr std::chrono::seconds rollCooldown = 5s; // registering new position cooldown
+    const static constexpr int cubeFaces = 9;
 
     Imu();
 
     /**
      * @brief Perform calibration process of face position. 
-     *      One face register on function call. Saved in flash at success
+     *      One face register on function call.
+     *      Positions temporarily saved in RTC_DATA_ATTR. 
+     *      When all faces registered - they're saved in flash.
      * @return see enum CalibrationStatus
      */
-    int CalibrateCubeFaces();
+    int CalibrateCubeFaces(int& returnPosition);
 
     /**
-     * @brief Get position from imu (X, Y, Z) accelometer. 
+     * @brief Get position (X, Y, Z) from imu accelometer. 
      * @return (Orientation) object.
      */
     Orientation GetPositionRaw(void);
@@ -128,7 +140,6 @@ public:
     int DetectFace(const Orientation& orient);
 
 private:
-    const static constexpr int cubeFaces = 9;
     const static constexpr gpio_num_t pinSda = (gpio_num_t) 21; //23lolin(?gnd) //21firebeetle
     const static constexpr gpio_num_t pinScl = (gpio_num_t) 22; //19lolin(?gnd) //22firebeetle
     const static constexpr i2c_port_t port = (i2c_port_t) I2C_NUM_0;
@@ -162,7 +173,7 @@ private:
      * @brief Clear all registered positions from flash memory
      * @return true if success
      */
-    bool eraseCalibration();
+    esp_err_t eraseCalibration();
 };
 
 }; // Namespace end ------------------

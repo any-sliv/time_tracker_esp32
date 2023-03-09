@@ -80,9 +80,6 @@ public:
     [[nodiscard]] esp_err_t erase(const char* const key) const { 
         auto ret = ESP_OK;
         ret = nvs_erase_key(handle, key);
-        if(ret != ESP_OK) {
-            ESP_LOGE(__FILE__, "%s:%d. NVS flash erase %s", __func__ ,__LINE__, esp_err_to_name(ret));
-        }
         ret = nvs_commit(handle);
         return ret;
     }

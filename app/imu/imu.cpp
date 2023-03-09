@@ -28,7 +28,12 @@ extern QueueHandle_t SleepPauseQueue;
 // data in case of bluetooth connection lost. At reconnection will be sent.
 // Its size is determined in vector implementation.
 // Careful about size with RTC_DATA_ATTR (must be global). RTC memory has only 8kB. 
+
+// Stores data for application <face,startTime>
 RTC_DATA_ATTR SimpleVector<PositionQueueType, 100> SavedPositions;
+// Used for calibration
+RTC_DATA_ATTR SimpleVector<Orientation, Imu::cubeFaces> CalibrationBank;
+// Imu logic
 RTC_DATA_ATTR Orientation oldPos;
 RTC_DATA_ATTR Timestamp cooldown;
 RTC_DATA_ATTR bool isNewPos;
@@ -77,10 +82,11 @@ void IMU::ImuTask(void *pvParameters) {
         auto val = 0;
         if(xQueueReceive(ImuCalibrationInitQueue, &val, 0)) {
             if(val != 0) {
-                auto ret = imu.CalibrateCubeFaces();
-                auto face = imu.DetectFace(orient);
+                auto pos = -1;
+                // Pos will have face number
+                auto ret = imu.CalibrateCubeFaces(pos);
                 // Create a string "x,xx" containing calibration status and calibrated face
-                std::string calibrationStatus = std::to_string(ret) + std::to_string(face);
+                std::string calibrationStatus = std::to_string(ret) + ',' + std::to_string(pos);
                 xQueueSend(ImuCalibrationStateQueue, calibrationStatus.data(), 0);
             }
         }
@@ -108,84 +114,59 @@ Imu::Imu() : MPU6050(Imu::pinScl, Imu::pinSda, Imu::port) {
     KALMAN pfilter(0.005);
     KALMAN rfilter(0.005);
 
-    ESP_LOGI(__FILE__, "%s:%d. Checking calibration...", __func__ ,__LINE__);
-
     auto res = checkCalibration();
     if(!res) {
         ESP_LOGE(__FILE__, "%s:%d. Calibration missing", __func__ ,__LINE__);
     }
 }
 
-int Imu::CalibrateCubeFaces() {
-    //TODO if calibration was interrupted, calibration is still '0' and process continues from middle instead of
-    //TODO beginning with erasing
-    int cal = 0;
-    auto nvsReadStatus = nvs.get("calibration", cal);
-    //TODO simplify with 'goto'?
-    if(nvsReadStatus == ESP_OK) {
-        if(cal == 1) {
-            ESP_LOGW(__FILE__, "%s:%d. New calibration initiated. Erasing calibration.", __func__ ,__LINE__);
-            // Erase positions from flash
-            if(!(eraseCalibration())) {
-                ESP_LOGE(__FILE__, "%s:%d. Could not erase flash", __func__ ,__LINE__);
-                return CalibrationStatus::ERROR;
-            } 
-            // Set calibration to '0' - no calibration.
-            if(nvs.set("calibration", 0) != ESP_OK) {
-                ESP_LOGE(__FILE__, "%s:%d. Could not save flash", __func__ ,__LINE__);
-                return CalibrationStatus::ERROR;
-            }
-        }
-        //else; cal == 0 - everything's fine. go do the stuff
-    } 
-    else if(nvsReadStatus == ESP_ERR_NVS_NOT_FOUND) {
-        if(nvs.set("calibration", 0) != ESP_OK) {
-            ESP_LOGE(__FILE__, "%s:%d. Could not save flash", __func__ ,__LINE__);
-            return CalibrationStatus::ERROR;
-        }
-    }
-    else {
-        ESP_LOGE(__FILE__, "%s:%d. Could not read from flash", __func__ ,__LINE__);
-        return CalibrationStatus::ERROR;
-    }
-
+int Imu::CalibrateCubeFaces(int& returnPosition) {
+    //todo calibration cancel option!
     ESP_LOGI(__FILE__, "%s:%d. Calibrating new position", __func__ ,__LINE__);
     // Let the cube stabilize
     TaskDelay(200ms);
     auto positionToSave = GetPositionRaw();
 
-    if(checkCalibration(positionToSave)) {
-        // If this position exists in memory
-        ESP_LOGW(__FILE__, "%s:%d. Position already exists in memory", __func__ ,__LINE__);
+    if(CalibrationBank.isDuplicate(positionToSave)) {
+        ESP_LOGW(__FILE__, "%s:%d. Position already exists", __func__ ,__LINE__);
         return CalibrationStatus::ALREADY_EXISTS;
     }
 
-    auto positions = getNoOfCalibratedPositions();
-    std::string nvsEntry{"pos"};
-    nvsEntry += std::to_string(positions);
+    // Save temporarily
+    CalibrationBank.Push(positionToSave);
 
-    //TODO check if you can save whole orientation object
-    // Saving in flash using pos<faceNumber> key
-    auto ret = nvs.set(nvsEntry.c_str(), positionToSave.pos);
-    if(ret != ESP_OK) {
-        ESP_LOGE(__FILE__, "%s:%d. Could not save flash", __func__ ,__LINE__);
-        return CalibrationStatus::ERROR;
-    }
+    auto positions = CalibrationBank.GetActiveItems();
+    returnPosition = positions;
 
     if(positions >= Imu::cubeFaces) {
-        // All possible positions should exist in memory
-        ESP_LOGI(__FILE__, "%s:%d. Calibration done", __func__ ,__LINE__);
-        // Additional check just to be sure
-        if(checkCalibration()) {
-            if(nvs.set("calibration", 1) != ESP_OK) {
-                return CalibrationStatus::ERROR;
-            }
-            return CalibrationStatus::DONE;
-        }
-        else {
+        // All positions registered. Erase previous and save current
+        auto err = eraseCalibration();
+        if(err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGE(__FILE__, "%s:%d. Could not erase flash %s", __func__ ,__LINE__, esp_err_to_name(err));
             return CalibrationStatus::ERROR;
         }
+
+        for(int i = positions; i >= 1; i--) {
+            auto value = CalibrationBank.Pop();
+            std::string nvsKey{"pos"};
+            nvsKey += std::to_string(i);
+
+            // Saving in flash using pos<faceNumber> key
+            auto ret = nvs.set(nvsKey.c_str(), value);
+            if(ret != ESP_OK) {
+                ESP_LOGE(__FILE__, "%s:%d. Could not save flash %s", __func__ ,__LINE__, esp_err_to_name(ret));
+                return CalibrationStatus::ERROR;
+            }
+        }
+
+        // Additional check just to be sure
+        if(checkCalibration()) {
+            ESP_LOGI(__FILE__, "%s:%d. Calibration done", __func__ ,__LINE__);
+            return CalibrationStatus::DONE;
+        }
+        return CalibrationStatus::ERROR;
     }
+    
     return CalibrationStatus::OK;
 }
 
@@ -197,7 +178,7 @@ bool Imu::OnPositionChange(const Orientation& newOrient) {
     // Each write in RTC_DATA_ATTR SavedPositions is "saving". This data is retained during sleep/wake cycles.
 
     if(SavedPositions.GetActiveItems() >= SavedPositions.Size()) {
-        ESP_LOGW(__FILE__, "%s:%d. Could not save position. RTC Memory array full.", __func__ ,__LINE__);
+        ESP_LOGW(__FILE__, "%s:%d. Could not save position. RTC Memory array full. Items: %d", __func__ ,__LINE__, SavedPositions.GetActiveItems());
         return false;
     }
 
@@ -207,12 +188,15 @@ bool Imu::OnPositionChange(const Orientation& newOrient) {
         ESP_LOGW(__FILE__, "%s:%d. Wrong position detected. Not any of calibrated positions", __func__ ,__LINE__);
     }
 
-    PositionQueueType prevPos = SavedPositions.Pop();
-    // Put back item we popped
-    SavedPositions.Push(prevPos);
-    if(prevPos.face == face) {
-        // Same position as before, dont save it
-        return false;
+    // Skip if no positions exist in memory
+    if(SavedPositions.GetActiveItems()) {
+        PositionQueueType prevPos = SavedPositions.Pop();
+        // Put back item we popped
+        SavedPositions.Push(prevPos);
+        if(prevPos.face == face) {
+            // Same position as before, dont save it
+            return false;
+        }
     }
 
     // Item will hold values only of those two parameters
@@ -233,7 +217,7 @@ int Imu::getNoOfCalibratedPositions() {
 
         Orientation tmp;
         //Return false if flash hasn't no. of positions == cubeFaces
-        if(nvs.get(nvsEntry.c_str(), tmp.pos) != ESP_OK) {
+        if(nvs.get(nvsEntry.c_str(), tmp) != ESP_OK) {
             break;
         }
         faces++;
@@ -248,7 +232,7 @@ bool Imu::checkCalibration() {
 
         Orientation tmp;
         //Return false if flash hasn't no. of positions == cubeFaces
-        auto res = nvs.get(nvsEntry.c_str(), tmp.pos);
+        auto res = nvs.get(nvsEntry.c_str(), tmp);
         if(res != ESP_OK) {
             return false;
         }
@@ -262,7 +246,7 @@ bool Imu::checkCalibration(const Orientation& orient) {
         nvsEntry += std::to_string(i);
 
         Orientation tmp;
-        if(nvs.get(nvsEntry.c_str(), tmp.pos) != ESP_OK) {
+        if(nvs.get(nvsEntry.c_str(), tmp) != ESP_OK) {
             return false;
         }
         // If given position exists in flash return false
@@ -271,17 +255,19 @@ bool Imu::checkCalibration(const Orientation& orient) {
     return true;
 }
 
-bool Imu::eraseCalibration() {
+esp_err_t Imu::eraseCalibration() {
+    esp_err_t err = ESP_FAIL;
+    // '+10' search for more entries, if they exist - will be wiped
     for (auto i = 1; i <= Imu::cubeFaces + 10; i++) {
         std::string nvsEntry{"pos"};
         nvsEntry += std::to_string(i);
-        auto res = nvs.erase(nvsEntry.c_str());
-        if(!(res == ESP_OK || (res == ESP_ERR_NVS_NOT_FOUND))) {
+        err = nvs.erase(nvsEntry.c_str());
+        if(err != ESP_OK && err != ESP_ERR_NVS_INVALID_HANDLE) {
             // Res different than ESP_OK or not_found
-            return false;
+            return err;
         }
     }
-    return true;
+    return err;
 }
 
 int Imu::DetectFace(const Orientation& orient) {
@@ -291,7 +277,7 @@ int Imu::DetectFace(const Orientation& orient) {
         nvsEntry += std::to_string(i);
         // Read from flash using pos<faceNumber> key
         Orientation savedPos(0,0,0);
-        auto ret = nvs.get(nvsEntry.c_str(), savedPos.pos);
+        auto ret = nvs.get(nvsEntry.c_str(), savedPos);
         if(ret != ESP_OK) {
             ESP_LOGE(__FILE__, "%s:%d. Could not read flash", __func__ ,__LINE__);
         }
