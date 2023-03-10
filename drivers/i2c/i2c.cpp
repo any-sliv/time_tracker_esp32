@@ -1,3 +1,12 @@
+/**
+ * @file main.cpp
+ * @author Maciej Sliwinski
+ * @brief This file is a part of time_tracker_esp32 project.
+ *
+ * The code is distributed under the MIT License.
+ * See the LICENCE file for more details.
+ */
+
 #include "i2c.hpp"
 
 #define I2C_MASTER_FREQ_HZ 400000

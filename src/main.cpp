@@ -7,7 +7,6 @@
  * See the LICENCE file for more details.
  */
 
-
 #include "appManagement.hpp"
 #include "nvs.hpp"
 
