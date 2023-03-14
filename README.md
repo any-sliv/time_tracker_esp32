@@ -26,7 +26,6 @@ In order to start with your own DIY tracker you will go through these steps:
 Alright, time to build the tracker :game_die: Here is the list of parts you need :gear:
 
 - [DFRobot Firebeetle ESP32](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654) (currently the only supported board)
-
 - [MPU6050 Accelometer](https://components101.com/sensors/mpu6050-module)
 - Battery (lithium) of your choice, single cell, with the right shape you can fit any up to 1000mAh. Mind that Firebeetle has no any protection circuit
 - 3D printed parts (models available in docs/ )
@@ -43,6 +42,7 @@ Equipment you might need for assembly:
 
 ![Steps](docs/images/hwBuild.png)
 
+- Cut the trace between exposed pads (be careful not to cut the other traces)
 - Solder MPU6050 to Firebeetle. Match the pins from MPU :exclamation: Mind that MPU's VCC pin should connect to 3V3 on the beetle
 - Take your battery and solder its terminals to pads on the beetle's bottom side
 - Attach battery to Firebeetle board (suggestion: tape)
@@ -58,7 +58,7 @@ Connect USB-C cable, charge the battery and upload software!
 
 ![Steps](docs/images/consumption.png)
 
-An average current consumption on FireBeetle is around 1.3 mA (to be improved) Deep sleep consumption is 400uA. Time on battery you can calculate as follows: </br>`90% * capacity[mAh] / avg_consumption[mA] = time[h]`. </br>Other boards might yield different results. When looking for an alternative board pay attention to what components on the board are powered from 3V3 rail, an example is USB to UART converter present on almost every board, they are usually connected to 3V3, so they will drain your battery. Lolin32 Lite seems to be the closest suitable alternative, but since it has no connection from battery to ESP32 you might to hack a resistor divier and connect it to some analog input.
+An average current consumption on FireBeetle is around 500uA. Time on battery you can calculate as follows: </br>`90% * capacity[mAh] / avg_consumption[mA] = time[h]`. </br> Other boards might yield different results. When looking for an alternative board pay attention to what components on the board are powered from 3V3 rail, an example is USB to UART converter present on almost every board, they are usually connected to 3V3, so they will drain your battery. Lolin32 Lite seems to be the closest suitable alternative, but since it has no connection from battery to ESP32 you might to hack a resistor divier and connect it to some analog input.
 </br>
 Cube app will remind you about low battery level.
 
