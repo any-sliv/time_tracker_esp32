@@ -112,7 +112,7 @@ public:
 
 class Imu : private MPU6050 {
 public:
-    const static constexpr std::chrono::milliseconds taskPeriod = 10ms;
+    const static constexpr std::chrono::milliseconds taskPeriod = 5ms;
     const static constexpr std::chrono::seconds rollCooldown = 5s; // registering new position cooldown
     const static constexpr int cubeFaces = 9;
 

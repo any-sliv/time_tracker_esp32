@@ -319,6 +319,7 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         }
 
         ESP_LOGI(__FILE__, "%s:%d. OTA Success. Rebooting...", __func__ ,__LINE__);
+        //TODO enabled: skip image validation when exiting deep sleep
         pCharacteristic->setValue(OTA_CONTROL_DONE_ACK);
         TaskDelay(1s);
         // when calling esp_restart OS is stuck

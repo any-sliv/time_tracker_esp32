@@ -85,7 +85,7 @@ void AppManagementTask(void *pvParameters) {
     // If you want to debug device, see whats going on without it
     // going to sleep so quick all the time: increase this cooldown!
     // Sleep cooldown is a point in time
-    Timestamp sleepCooldown = Clock::now() + 200ms;
+    Timestamp sleepCooldown = Clock::now() + 100ms;
 
     for(;;) {
         if(BLE::Ble::state == BLE::Ble::ConnectionState::CONNECTED) {
