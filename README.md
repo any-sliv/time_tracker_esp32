@@ -86,4 +86,4 @@ Otherwise... Plug the cube and run PlatformIO serial monitor, lookup the errors 
 If you found a :bug: please report it via issues tab
 
 ## Known issues
-Time drifts +/- 5%. Changed from RTC clock source from internal RC to internal 8 MHz clock; didn't help
+Time drifts +/- 5%. 8.5 MHz internal RTC clock issue - to be fixed in upcoming ESP-IDF updates, you can implement it already using [esp-idf issue commit](https://github.com/espressif/esp-idf/commit/a0ed82525ec03bfe3a3edc46fbbb2c8449db3e14)

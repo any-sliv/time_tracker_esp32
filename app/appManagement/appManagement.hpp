@@ -46,35 +46,12 @@ static void sleep(std::chrono::duration<long long, std::micro> duration) {
     // Tasks to do before going to deep sleep!
 
     rtc_gpio_isolate(GPIO_NUM_2);
-    rtc_gpio_isolate(GPIO_NUM_12); //TODO idk if it affects anything. brought it cuz of esp-idf reference recommendation
-    // gpio_reset_pin(GPIO_NUM_0);
-    // gpio_reset_pin(GPIO_NUM_2);
-    // gpio_reset_pin(GPIO_NUM_4);
-    // gpio_reset_pin(GPIO_NUM_12);
-    // gpio_reset_pin(GPIO_NUM_13);
-    // gpio_reset_pin(GPIO_NUM_14);
-    // gpio_reset_pin(GPIO_NUM_15);
-    // gpio_reset_pin(GPIO_NUM_25);
-    // gpio_reset_pin(GPIO_NUM_26);
-    // gpio_reset_pin(GPIO_NUM_27);
-    // gpio_reset_pin(GPIO_NUM_32);
-    // gpio_reset_pin(GPIO_NUM_33);
-    // gpio_reset_pin(GPIO_NUM_34);
-    // gpio_reset_pin(GPIO_NUM_35);
-    // gpio_reset_pin(GPIO_NUM_36);
-    // gpio_reset_pin(GPIO_NUM_37);
-    // gpio_reset_pin(GPIO_NUM_38);
-    // gpio_reset_pin(GPIO_NUM_39);
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
-    // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC8M, ESP_PD_OPTION_ON);
-
+    rtc_gpio_isolate(GPIO_NUM_12);
 
     if(BLE::Ble::state == BLE::Ble::ConnectionState::CONNECTED) {
         BLEDevice::deinit();
     }
 
-    //TODO Firebeetle board deep sleep consumption: 1.6mA. Huge, spent a day trying to fix. 
-    //TODO No signs of possible improvements so far :(
     ESP_LOGI(__FILE__, "%s:%d. zzz...", __func__ ,__LINE__);
     esp_deep_sleep_start();
     // Remember - after deep sleep whole application CPU will run application from the start
