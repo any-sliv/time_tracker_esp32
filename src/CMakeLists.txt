@@ -6,6 +6,7 @@ FILE(GLOB_RECURSE app_sources
     ${CMAKE_SOURCE_DIR}/drivers/*.*
     ${CMAKE_SOURCE_DIR}/app/*.*
     ${CMAKE_SOURCE_DIR}/app/ble/*.*
+    ${CMAKE_SOURCE_DIR}/app/ble/esp-nimble-cpp/src/*.*
 )
 
 list(FILTER app_sources EXCLUDE REGEX ${CMAKE_SOURCE_DIR}/app/ble/esp-nimble-cpp/examples)
