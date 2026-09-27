@@ -1,7 +1,7 @@
 # Cube Time Tracker ESP32
 
 **:exclamation: --This project is still under heavy development. First release is coming!--**
-**Project stopped in 2023. I have no skills in making desktop app. Current state: working python CLI showing some time insights. If you wish to collaborate, please contact me.**
+**Desktop app - cube's receiving end is in development.**
 </br>
 
 ![:game_die: tracker](docs/images/cubeDemo.png) 
