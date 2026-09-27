@@ -10,6 +10,10 @@
 #pragma once
 
 #include <memory>
+// NimBLE 2.x swapped its internal client list for a std::array, so <list> is no longer
+// pulled in transitively by NimBLEDevice.h - Service::Characteristics needs it.
+#include <list>
+#include <string>
 #include "dateTime.hpp"
 #include "NimBLEServer.h"
 #include "NimBLEDevice.h"
@@ -28,8 +32,8 @@ void BleTask(void *pvParameters);
 
 class Characteristic {
 public:
-    BLECharacteristic *self = nullptr;
-    BLECharacteristicCallbacks *callback = nullptr;
+    NimBLECharacteristic *self = nullptr;
+    NimBLECharacteristicCallbacks *callback = nullptr;
     std::string uuid;
     uint32_t property;
     std::string initValue;
@@ -50,7 +54,7 @@ public:
         return self->getValue().data();
     }
 
-    void SetCallback(BLECharacteristicCallbacks * cb) {
+    void SetCallback(NimBLECharacteristicCallbacks * cb) {
         callback = cb;
     }
 
@@ -64,7 +68,7 @@ public:
     Service() = delete;
     Service(const std::string& _uuid) : uuid(_uuid) {};
 
-    BLEService *self = nullptr;
+    NimBLEService *self = nullptr;
     std::list<Characteristic *> Characteristics;
     std::string uuid;
 
@@ -74,11 +78,18 @@ public:
 };
 
 class Ble {
-    static BLEServer * server;
+    static NimBLEServer * server;
     static esp_ota_handle_t otaHandle;
 public:
     enum class ConnectionState { IDLE, ADVERTISING, CONNECTED, DISCONNECTED };
-    static ConnectionState state;
+    // volatile: written on the NimBLE host task, read (and edge-detected) on AppManagementTask
+    static volatile ConnectionState state;
+
+    /// Set once this connection has handed over at least one position record.
+    /// Gates the "backlog drained, sleep early" path so a client that connected only
+    /// to calibrate or set the clock is not hung up on its first empty read.
+    /// Only touched from NimBLE host task callbacks, so no locking needed.
+    static volatile bool deliveredThisConnection;
 
     static void Init();
 
@@ -88,8 +99,10 @@ public:
 
     // Callbacks of BLE server (GAP)
     class ServerCallbacks : public NimBLEServerCallbacks {
-        void onConnect(BLEServer * server, NimBLEConnInfo& connInfo);
-        void onDisconnect(BLEServer * server, NimBLEConnInfo& connInfo, int reason);
+        void onConnect(NimBLEServer * server, NimBLEConnInfo& connInfo);
+        void onDisconnect(NimBLEServer * server, NimBLEConnInfo& connInfo, int reason);
+        // Logs the negotiated MTU, which sets the position-batch byte budget
+        void onMTUChange(uint16_t MTU, NimBLEConnInfo& connInfo);
     };
 
     // Callbacks of IMU characteristics in BLE communication

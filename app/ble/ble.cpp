@@ -10,6 +10,8 @@
 #include "ble.hpp"
 #include "battery.hpp"
 #include "imu.hpp"
+#include "sleepPause.hpp"
+#include <algorithm>
 #include "NimBLEDevice.h"
 #include "NimBLEUtils.h"
 #include "NimBLEServer.h"
@@ -34,9 +36,10 @@ extern QueueHandle_t ImuCalibrationStateQueue;
 extern QueueHandle_t SleepPauseQueue;
 extern QueueHandle_t SleepStartQueue;
 
-BLEServer * Ble::server = NULL;
+NimBLEServer * Ble::server = NULL;
 esp_ota_handle_t Ble::otaHandle = NULL;
-Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
+volatile Ble::ConnectionState Ble::state = Ble::ConnectionState::IDLE;
+volatile bool Ble::deliveredThisConnection = false;
 
 const std::string advServiceUuid = "8227dcb2-30e3-11ed-a261-0242ac120002";
 // <const> static constexpr char; <const> = adding it removes -Wwrite-strings warning (dunno why)
@@ -45,6 +48,17 @@ const static constexpr char * uuidImuPositionCharateristic = "7bef916a-3141-11ed
 const static constexpr char * uuidImuCalibrationCharateristic = "7bef916a-3141-11ed-a261-0242ac120002";
 
 const static constexpr char * uuidSleep = "646b8837-cea9-4006-be25-00c990029e90";
+
+// Connection interval, in 1.25ms units. The default negotiated interval is ~30ms,
+// which sets the floor on every ATT round trip (reads, service discovery, OTA chunks).
+// Values chosen to satisfy Apple's Accessory Design Guidelines, which macOS/iOS
+// enforce by rejecting non-conforming requests outright:
+//   min >= 15ms and a multiple of 15ms; max >= min + 15ms; latency <= 30;
+//   timeout <= 6s; max * (latency + 1) * 3 < timeout.
+const static constexpr uint16_t connIntervalMin = 12;   // 15ms
+const static constexpr uint16_t connIntervalMax = 24;   // 30ms
+const static constexpr uint16_t connLatency     = 0;
+const static constexpr uint16_t connTimeout     = 200;  // 2000ms, in 10ms units
 
 const static constexpr char * uuidDeviceFirmwareUpdateService = "00009921-1212-efde-1523-785feabcd123"; 
 const static constexpr char * uuidDeviceFirmwareDataCharacteristic = "00009921-1212-efde-1523-785feabcd124"; 
@@ -76,7 +90,13 @@ void BLE::BleTask(void *pvParameters) {
 }
 
 void Ble::Init() {
-    BLEDevice::init("Time tracker");
+    // NimBLE 2.x: init() reports success instead of returning void. The name given here
+    // is the GAP Device Name characteristic - it is no longer put in the advertisement
+    // (see Advertise()).
+    if(!NimBLEDevice::init("Time tracker")) {
+        ESP_LOGE(__FILE__, "%s:%d. NimBLE init failed", __func__ ,__LINE__);
+        return;
+    }
 
     // Scheme: Callback to characteristic. Characteristics to service. 
 
@@ -148,59 +168,115 @@ void Ble::Init() {
     AddService(deviceFirmwareUpdateService);
     // ----------------------------------------------------------
 
+    // NimBLE 2.x: services are registered when the server starts, not by
+    // NimBLEService::start() (now a deprecated no-op). startAdvertising() would do
+    // this implicitly; calling it here keeps the failure visible in the log.
+    if(server != nullptr && !server->start()) {
+        ESP_LOGE(__FILE__, "%s:%d. GATT server failed to start", __func__ ,__LINE__);
+    }
+
     Advertise();
 }
 
 void Ble::Advertise() {
-    BLEAdvertising *adv = BLEDevice::getAdvertising();
+    NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     adv->addServiceUUID(advServiceUuid);
-    adv->setScanResponse(false);
-    adv->setMinPreferred(0x06);
-    // adv->setMinPreferred(0x12); 
-    BLEDevice::startAdvertising();
+    // NimBLE 2.x no longer enables the scan response by default; keep it off. A scan
+    // response costs an extra SCAN_REQ/SCAN_RSP exchange per scanning central, and
+    // nothing in the client contract needs it (docs/bleApi.md keys on the UUID below).
+    adv->enableScanResponse(false);
+    // Advertised Slave Connection Interval Range. Was 0x06 (7.5ms) with no max, which
+    // is below Apple's 15ms floor and so gets ignored by macOS/iOS.
+    adv->setPreferredParams(connIntervalMin, connIntervalMax);
+    // No setName(): NimBLE 2.x stopped advertising the name implicitly, and there is no
+    // room for it anyway - flags (3) + the 128-bit service UUID (18) + the interval
+    // range (6) already fill 27 of the 31 legacy payload bytes. Clients still read the
+    // full "Time tracker" from the GAP Device Name characteristic after connecting.
+    NimBLEDevice::startAdvertising();
     BLE::Ble::state = Ble::ConnectionState::ADVERTISING;
 }
 
 void Ble::AddService(Service service) {
     if(server == NULL) {
         // No initialization required. Server guaranteed to be instantized.
-        server = BLEDevice::createServer();
+        server = NimBLEDevice::createServer();
         server->setCallbacks(new ServerCallbacks);
     }
 
-    service.self = server->createService((BLEUUID(service.uuid)));
+    service.self = server->createService((NimBLEUUID(service.uuid)));
 
     for(auto && characteristic : service.Characteristics) {
         // Create instances of all characteristics included in service
-        characteristic->self = service.self->createCharacteristic(BLEUUID(characteristic->uuid), characteristic->property);
+        characteristic->self = service.self->createCharacteristic(NimBLEUUID(characteristic->uuid), characteristic->property);
         characteristic->SetValue(characteristic->initValue);
         if(characteristic->callback != nullptr) characteristic->self->setCallbacks(characteristic->callback);
     }
-    service.self->start();
+    // No service.self->start() here: in NimBLE 2.x all services are registered in one
+    // go by NimBLEServer::start(), called at the end of Init().
 }
 
-void Ble::ServerCallbacks::onConnect(BLEServer * server, NimBLEConnInfo& connInfo) {
+void Ble::ServerCallbacks::onConnect(NimBLEServer * server, NimBLEConnInfo& connInfo) {
     ESP_LOGI(__FILE__, "%s:%d. BLE connection established!", __func__ ,__LINE__);
     Ble::state = Ble::ConnectionState::CONNECTED;
-    BLEDevice::stopAdvertising();
+    Ble::deliveredThisConnection = false;
+    NimBLEDevice::stopAdvertising();
+
+    // Ask for a faster connection interval. Every ATT round trip costs at least one
+    // interval, so this shortens reads, service discovery and OTA alike. The central
+    // may refuse; onConnParamsUpdate/the NimBLE log will show what was actually agreed.
+    server->updateConnParams(connInfo.getConnHandle(), connIntervalMin, connIntervalMax,
+                             connLatency, connTimeout);
 }
 
-void Ble::ServerCallbacks::onDisconnect(BLEServer * server, NimBLEConnInfo& connInfo, int reason) {
+void Ble::ServerCallbacks::onMTUChange(uint16_t MTU, NimBLEConnInfo& connInfo) {
+    // Position reads batch into MTU-3 bytes, so this is the effective batch size
+    ESP_LOGI(__FILE__, "%s:%d. MTU negotiated: %u (batch budget %u B)",
+             __func__ ,__LINE__, MTU, MTU > 3 ? MTU - 3 : 0);
+}
+
+void Ble::ServerCallbacks::onDisconnect(NimBLEServer * server, NimBLEConnInfo& connInfo, int reason) {
     ESP_LOGI(__FILE__, "%s:%d. BLE connection lost. Reason: %d", __func__ ,__LINE__, reason);
     Ble::state = Ble::ConnectionState::DISCONNECTED;
-    BLEDevice::startAdvertising();
+    // NimBLE 2.x dropped the implicit restart on disconnect (advertiseOnDisconnect() now
+    // defaults off), so this call is the only thing putting the device back on air.
+    NimBLEDevice::startAdvertising();
 }
 
 void Ble::ImuPositionCallback::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
-    IMU::PositionQueueType item;
-    xQueueSend(ImuPositionGetQueue, &item, 0);
-    // Mind that these are two separate queues
-    if(xQueueReceive(ImuPositionQueue, &item, 0)) {
-        std::string text = std::to_string(item.startTime) + "," + std::to_string(item.face);
-        pCharacteristic->setValue(text);
+    // Budget for one batch. MTU-3 is the ATT payload; never assume it, the client
+    // negotiates it. Clamped so the reply always fits the queue item.
+    const uint16_t mtu = connInfo.getMTU();
+    const uint16_t budget = std::min<uint16_t>(mtu > 3 ? mtu - 3 : 1,
+                                               IMU::PositionBatchMaxLen - 1);
+
+    if(xQueueSend(ImuPositionGetQueue, &budget, 0) != pdTRUE) {
+        // Depth-1 queue: a second read arriving before ImuTask serviced the first
+        // silently drops the request, and this read returns stale/empty.
+        ESP_LOGW(__FILE__, "%s:%d. Position request dropped, read again", __func__ ,__LINE__);
+    }
+
+    // Mind that these are two separate queues. The value set here is the response to
+    // the PREVIOUS read, which is why clients are told to read twice.
+    char batch[IMU::PositionBatchMaxLen] = {0};
+    if(xQueueReceive(ImuPositionQueue, batch, 0)) {
+        batch[IMU::PositionBatchMaxLen - 1] = '\0';
+        pCharacteristic->setValue(std::string(batch));
+        Ble::deliveredThisConnection = true;
     }
     else {
+        // Keep this byte-identical: setValue(0) deduces int, i.e. four zero bytes.
+        // That is what the client's drain loop terminates on - do not "tidy" it into
+        // an empty string.
         pCharacteristic->setValue(0);
+
+        // Backlog drained. Only sleep early if this connection actually delivered
+        // something, otherwise a client connecting purely to calibrate or set the
+        // clock would be hung up by its very first empty read.
+        if(Ble::deliveredThisConnection) {
+            ESP_LOGI(__FILE__, "%s:%d. Backlog drained, sleeping", __func__ ,__LINE__);
+            auto mode = SleepStartMode::Graceful;
+            xQueueSend(SleepStartQueue, &mode, 0);
+        }
     }
 }
 
@@ -223,7 +299,8 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
         // Initiate calibration
         xQueueSend(ImuCalibrationInitQueue, &val, 0);
         // Pause sleep (with timeout). Resume it using BLE sleep characteristic
-        xQueueSend(SleepPauseQueue, "imuCalibration", 0);
+        auto reason = SleepPauseReason::ImuCalibration;
+        xQueueSend(SleepPauseQueue, &reason, 0);
     }
     // Clear request
     pCharacteristic->setValue(0);
@@ -232,8 +309,8 @@ void Ble::ImuCalibrationCallback::onWrite(NimBLECharacteristic* pCharacteristic,
 void Ble::SleepCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
     // Sleep enter request from client
     //TODO change to notify!
-    auto item = 1;
-    xQueueSend(SleepStartQueue, &item, 0);
+    auto mode = SleepStartMode::Immediate;
+    xQueueSend(SleepStartQueue, &mode, 0);
 }
 
 void Ble::BatteryCallback::onRead(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
@@ -266,6 +343,11 @@ void Ble::TimeCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLECo
     timeval tv = {.tv_sec = receivedTime, .tv_usec = 0};
     settimeofday(&tv, NULL);
     ESP_LOGI(__FILE__, "%s:%d. Time updated (epoch): %d", __func__ ,__LINE__, (unsigned int) receivedTime);
+
+    // The client just proved it is active. Sleep deadlines are monotonic now so this
+    // jump no longer strands them in the past, but hold awake anyway.
+    auto reason = SleepPauseReason::TimeSet;
+    xQueueSend(SleepPauseQueue, &reason, 0);
 }
 
 void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, NimBLEConnInfo& connInfo) {
@@ -296,7 +378,8 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         }
 
         ESP_LOGI(__FILE__, "%s:%d. OTA Begin", __func__ ,__LINE__);
-        xQueueSend(SleepPauseQueue, "otaUpdate", 0);
+        auto reason = SleepPauseReason::OtaUpdate;
+        xQueueSend(SleepPauseQueue, &reason, 0);
 
         pCharacteristic->setValue(OTA_CONTROL_REQUEST_ACK);
     } 
@@ -324,8 +407,9 @@ void Ble::OtaControlCallback::onWrite(NimBLECharacteristic * pCharacteristic, Ni
         TaskDelay(1s);
         // when calling esp_restart OS is stuck
         // workaround is to sleep after OTA, first reboot fails, then next one is fine
-        auto item = 0;
-        xQueueSend(SleepStartQueue, &item, 0);
+        // Graceful, so the DONE_ACK this callback just wrote reaches the client
+        auto mode = SleepStartMode::Graceful;
+        xQueueSend(SleepStartQueue, &mode, 0);
     }
     else {
         ESP_LOGW(__FILE__, "%s:%d. OTA Unkown request", __func__ ,__LINE__);

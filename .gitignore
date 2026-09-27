@@ -3,6 +3,7 @@
 workspace.code-workspace
 .vscode
 app/ble/esp-nimble-cpp
+build/
 
 # Prerequisites
 *.d

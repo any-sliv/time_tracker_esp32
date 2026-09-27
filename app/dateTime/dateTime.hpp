@@ -22,6 +22,16 @@ typedef std::chrono::time_point<std::chrono::system_clock> Timestamp;
 typedef std::chrono::system_clock Clock;
 
 /**
+ * Monotonic clock. Unlike Clock (system_clock) this is unaffected by settimeofday(),
+ * which the BLE Current Time characteristic calls. Any deadline that must survive a
+ * wall-clock jump (sleep cooldowns, connection hold) MUST use this, otherwise setting
+ * the time from the client throws every deadline into the past at once.
+ * Note it does NOT survive deep sleep - it restarts at each boot.
+ */
+typedef std::chrono::time_point<std::chrono::steady_clock> MonoTimestamp;
+typedef std::chrono::steady_clock MonoClock;
+
+/**
  * Pass me chrono time literal and I will return RTOS Ticks required to delay/wait.
  * @param time of type std::literals::chrono_literals
  */

@@ -11,7 +11,9 @@
 #include "kalmanfilter.hpp"
 #include <cmath>
 #include <array>
+#include <string>
 #include "dateTime.hpp"
+#include "sleepPause.hpp"
 
 extern "C" {
     #include "esp_log.h"
@@ -72,18 +74,56 @@ void IMU::ImuTask(void *pvParameters) {
             isNewPos = false;
         }
 
-        PositionQueueType item;
+        uint16_t budget = 0;
         // Send batched data from vector to BLE
-        if(xQueueReceive(ImuPositionGetQueue, &item, 0)) {
+        if(xQueueReceive(ImuPositionGetQueue, &budget, 0)) {
             // Initiate send only if there are items available
             if(SavedPositions.GetActiveItems()) {
-                // Pop item from vector
-                item = SavedPositions.Pop();
-                xQueueSend(ImuPositionQueue, &item, 0);
+                // Buffer must be exactly the queue item size - xQueueSend copies all of it
+                char batch[PositionBatchMaxLen] = {0};
+                std::string out;
 
-                const char * msg = "imuSendPosition";
+                // PopOldest, not Pop: Pop is LIFO, which would hand BLE the newest
+                // records first and put the drain out of chronological order.
+                while(SavedPositions.GetActiveItems()) {
+                    // Peek and format before committing - a record that does not fit
+                    // must stay in the vector for the next read.
+                    PositionQueueType next = SavedPositions.PeekOldest();
+                    std::string record = std::to_string(next.startTime) + "," +
+                                         std::to_string(next.face);
+
+                    // Record length is NOT fixed: face is unsigned, so an unmatched
+                    // face (-1) serialises as 4294967295 and the record is ~21 bytes.
+                    const size_t addition = out.empty() ? record.size() : record.size() + 1;
+
+                    if(!out.empty() && out.size() + addition > budget) {
+                        break;
+                    }
+                    if(out.empty() && record.size() > budget) {
+                        // Emit it anyway. At an unnegotiated MTU (23) the budget is 20
+                        // bytes and a 21-byte record would never fit, stalling the drain
+                        // forever. NimBLE serves oversized values via read-blob.
+                        ESP_LOGW(__FILE__, "%s:%d. Record %u B exceeds MTU budget %u B, sending anyway",
+                                 __func__ ,__LINE__, (unsigned) record.size(), (unsigned) budget);
+                    }
+
+                    if(!out.empty()) {
+                        out += ';';
+                    }
+                    out += record;
+                    SavedPositions.DropOldest();
+
+                    if(out.size() >= PositionBatchMaxLen - 1) {
+                        break;
+                    }
+                }
+
+                strncpy(batch, out.c_str(), PositionBatchMaxLen - 1);
+                xQueueSend(ImuPositionQueue, batch, 0);
+
                 // Defer sleep. Let someone process the data
-                xQueueSend(SleepPauseQueue, &msg, 0);
+                auto reason = SleepPauseReason::ImuSendPosition;
+                xQueueSend(SleepPauseQueue, &reason, 0);
             }
         }
 

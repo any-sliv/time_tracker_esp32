@@ -5,7 +5,9 @@ This documentation provides information on the Bluetooth Low Energy (BLE) commun
 
 
 ### Tracker goes zzz...
-The device is sleeping most of the time, what also means its BLE controller is turned off. Waking up happens once per five minutes or position has changed. Bluetooth wakes up for <5s, so be quick and listen for it... basically always.
+The device is sleeping most of the time, what also means its BLE controller is turned off. Waking up happens once per five minutes or position has changed, and it advertises for a few seconds — so be quick and listen for it... basically always.
+</br>
+Once you are **connected**, the tracker holds itself awake for up to **30 seconds** rather than hanging up mid-transfer. It ends the session early when either the position backlog has been drained (see Position below) or you write the Sleep characteristic. Note that after it sleeps it may not advertise again for up to five minutes, so finish everything you need in one session.
 </br>
 Mind that tracker is a low power device and its juice comes from battery, so try use/read/write as least and quick as possible.
 </br>
@@ -39,13 +41,13 @@ Mind that tracker is a low power device and its juice comes from battery, so try
     </br>
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
-    | uint32_t | 8 | Epoch (unix) time | READ + WRITE |
+    | int64_t | 8 | Epoch (unix) time | READ + WRITE |
 
     Device has no RTC battery, thus it might lose time. Using this characteristic device can have its system time updated.
     Device updates value onRead action. Read twice to get actual value.
 
 - **Sleep** (UUID: --)
-  - **Sleep** (UUID: 646b8837-cea9-4006-be25-00c990029e91)
+  - **Sleep** (UUID: 646b8837-cea9-4006-be25-00c990029e90)
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
     | uint8_t | 1 | Sleep request | WRITE |
@@ -56,17 +58,24 @@ Mind that tracker is a low power device and its juice comes from battery, so try
   - **Position** (UUID: 7bef916a-3141-11ed-a261-0242ac120001)
     | Data | Length (bytes) | Description | Properties |
     | -------- | -------- | -------- | -------- | 
-    | \<startTime>,\<cubeFace> | 10 | Tracker last position and start time | READ |
+    | \<startTime>,\<face>[;\<startTime>,\<face>]... | variable, up to MTU-3 | Batch of tracker positions and their start times | READ |
 
-    Example data: 
-    | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
-    | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | 
-    | 0x00 | 0x00 | 0x00 | 0x00 | 0x63 | 0xF0 | 0xD2 | 0x9E | 0x2C | 0x02 |
-    | Time b.7 | Time b.6 | Time b.5 | Time b.4 | Time b.3 | Time b.2 | Time b.1 | Time b.0 | Comma "," | Cube's face |
+    ASCII text. One read returns **as many records as fit in the negotiated MTU minus 3 bytes**, separated by `;`. Records are **oldest first**, and ordering holds across successive reads, so a client can simply append each batch.
 
-    Each tracker flip, this data is set in characteristic **OR** saved in order to send later when has no BLE connection. Start time is the time at which new position/face was registered.
+    Example data (three records in one read):
+    ```
+    1688587818,8;1688589019,4;1688590151,8
+    ```
+
+    - `startTime` is decimal epoch (unix) seconds at which the face was registered.
+    - `face` is the cube face. It may read **4294967295** (`-1` as unsigned), which means the tracker saw a position that matches none of its calibrated faces — treat it as "unknown", not as a real face.
+    - **A single record is a valid batch of one**, so a client written against the older one-record-per-read format keeps working unchanged.
+    - At a very small (unnegotiated, 23-byte) MTU a single record can exceed the budget. The tracker sends it anyway rather than stalling; the value is retrievable via a read-blob continuation.
+
+    Each tracker flip is saved in order to be sent later, so a backlog accumulates while there is no BLE connection.
     </br> Device updates value onRead action. Read twice to get actual value. First read might be zero, always read at least twice.
     BLE Client should read as long as value in characteristic is other than 0, due to fact there might be more data to read than just from one position change.
+    </br> Once the tracker has handed over at least one record and a subsequent read returns 0, it treats the backlog as drained and goes to sleep shortly after — so issue any other work (calibration, time set) before finishing the drain, or keep the connection busy.
 
   - **Calibration** (UUID: 7bef916a-3141-11ed-a261-0242ac120002)
     </br>

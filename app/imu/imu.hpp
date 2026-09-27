@@ -11,6 +11,7 @@
 
 #include "mpu6050.hpp"
 #include <array>
+#include <cstring>
 #include "dateTime.hpp"
 #include "gpio.hpp"
 #include "nvs.hpp"
@@ -30,6 +31,14 @@ struct PositionQueueType {
     time_t startTime;
 };
 
+/**
+ * @brief Size of the buffer carrying a formatted batch of position records
+ *      (ImuPositionQueue item size). Both endpoints must declare a buffer of
+ *      exactly this size - xQueueReceive copies the full item size regardless
+ *      of what is passed to it.
+ */
+constexpr size_t PositionBatchMaxLen = 256;
+
 template<typename Type, int SizeT>
 class SimpleVector {
     unsigned int activeItems;
@@ -45,6 +54,10 @@ public:
         return activeItems;
     }
 
+    // Items live at indices [1..activeItems]; index 0 is never written.
+    // Do NOT re-base this to 0: RTC memory survives the post-OTA deep sleep, so new
+    // firmware would misread records written by the old one.
+
     Type Pop() {
         if(activeItems == 0) {
             // Prevent from returning item with index -1
@@ -55,9 +68,43 @@ public:
         return retItem;
     }
 
+    /**
+     * @brief Oldest item, without removing it. Caller MUST check GetActiveItems()
+     *      first - on an empty vector this returns never-written elements[0].
+     */
+    Type PeekOldest() {
+        return elements[1];
+    }
+
+    /**
+     * @brief Discard the oldest item, shifting the rest down one slot.
+     */
+    void DropOldest() {
+        if(activeItems == 0) {
+            return;
+        }
+        // Shift [2..activeItems] down onto [1..activeItems-1]
+        memmove(&elements[1], &elements[2], (activeItems - 1) * sizeof(Type));
+        activeItems--;
+    }
+
+    /**
+     * @brief FIFO pop. Pop() is LIFO (newest first); this returns the OLDEST item,
+     *      so draining yields chronological order. Used when batching records to BLE.
+     */
+    Type PopOldest() {
+        if(activeItems == 0) {
+            return elements[0];
+        }
+        Type retItem = PeekOldest();
+        DropOldest();
+        return retItem;
+    }
+
     void Push(Type item) {
-        if(activeItems + 1 > SizeT) {
-            // Prevent from returning item beyond array boundaries
+        if(activeItems + 1 >= SizeT) {
+            // Highest writable slot is SizeT-1; '>' here wrote elements[SizeT],
+            // one past the end, corrupting whatever RTC var followed.
             return;
         }
         elements[activeItems + 1] = item;
@@ -69,7 +116,9 @@ public:
             return false;
         }
 
-        for(int i = 0; i < activeItems; i++) {
+        // Data lives at [1..activeItems]; iterating from 0 compared uninitialised
+        // elements[0] and never checked the newest entry.
+        for(unsigned int i = 1; i <= activeItems; i++) {
             if(elements[i] == item) {
                 return true;
             }
